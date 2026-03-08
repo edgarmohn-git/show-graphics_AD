@@ -112,9 +112,9 @@ export default {
     // --- Set active image for slot ---
     if (request.method === 'PUT' && path === '/select') {
       const body = await request.json();
-      const { slot, key, scale = 100, fit = 'contain', x = 50, y = 50 } = body;
+      const { slot, key, name = key, scale = 100, fit = 'contain', x = 50, y = 50 } = body;
       if (!slot || !key) return error('slot and key required', 400, origin);
-      await env.KV.put(`active_${slot}`, JSON.stringify({ key, scale, fit, x, y, updatedAt: new Date().toISOString() }));
+      await env.KV.put(`active_${slot}`, JSON.stringify({ key, name, scale, fit, x, y, updatedAt: new Date().toISOString() }));
       return json({ ok: true }, 200, origin);
     }
 

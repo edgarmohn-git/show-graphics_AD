@@ -35,8 +35,8 @@ a,button{cursor:pointer}
 .canvas-wrap{position:relative;overflow:hidden;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;cursor:move}
 .canvas-wrap.ratio-h{aspect-ratio:16/9}
 .canvas-wrap.ratio-v{aspect-ratio:9/16;max-height:calc((50vw - 28px) * (9/16));width:auto;margin:0 auto}
-.canvas-wrap img.preview-img{position:absolute;transform-origin:center center;transition:transform .1s,left .1s,top .1s}
-.grid-overlay{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:.4}
+.canvas-wrap img.preview-img{position:absolute;transform-origin:center center;transition:transform .1s,left .1s,top .1s;z-index:1}
+.grid-overlay{position:absolute;inset:0;pointer-events:none;z-index:2}
 .grid-controls{display:flex;gap:10px;align-items:center;padding:6px 16px;background:#111;border-bottom:1px solid #1e1e1e;font-size:.75rem;color:#666}
 .grid-controls select{background:#1e1e1e;color:#ccc;border:1px solid #2a2a2a;border-radius:4px;padding:3px 7px;font-size:.75rem}
 .grid-controls label{display:flex;align-items:center;gap:5px;cursor:pointer;color:#777}
@@ -117,6 +117,7 @@ a,button{cursor:pointer}
   <input type="password" id="api-key" placeholder="API Key">
   <button class="btn btn-gray" onclick="saveKey()">Save Key</button>
   <input type="text" id="search" placeholder="Search name or tag…" oninput="renderGrid()">
+  <button class="btn btn-green" onclick="openModal('upload-modal')">📤 Upload</button>
   <button class="btn btn-gray" onclick="loadGallery()">↺ Refresh</button>
   <button class="btn btn-gray" onclick="rebuildIndex()" title="Rebuild image list from R2 (use if gallery shows empty)">⚙ Rebuild Index</button>
   <button class="btn btn-amber btn-sm" id="select-btn" onclick="toggleSelectMode()">☑ Select</button>
@@ -306,6 +307,14 @@ let selectedLayouts = new Set();
 window.onload = () => {
   const saved = sessionStorage.getItem('sg_api_key');
   if (saved) document.getElementById('api-key').value = saved;
+  // Restore last known slot state instantly (before first poll returns)
+  try {
+    const last = JSON.parse(localStorage.getItem('sg_last_state') || 'null');
+    if (last) {
+      if (last.h) { activeH = last.h; updatePreview('h'); document.getElementById('name-h').textContent = last.h.name || last.h.key; document.getElementById('scale-h').value = last.h.scale; document.getElementById('scale-h-val').value = last.h.scale; document.getElementById('fit-h').value = last.h.fit; }
+      if (last.v) { activeV = last.v; updatePreview('v'); document.getElementById('name-v').textContent = last.v.name || last.v.key; document.getElementById('scale-v').value = last.v.scale; document.getElementById('scale-v-val').value = last.v.scale; document.getElementById('fit-v').value = last.v.fit; }
+    }
+  } catch(e) {}
   loadGallery();
   pollActive();
   setInterval(pollActive, 3000);
@@ -364,6 +373,8 @@ async function pollActive() {
     document.getElementById('name-v').textContent = rv?.name || (rv ? rv.key : '—');
     if (rh) { document.getElementById('scale-h').value = rh.scale; document.getElementById('scale-h-val').value = rh.scale; document.getElementById('fit-h').value = rh.fit; }
     if (rv) { document.getElementById('scale-v').value = rv.scale; document.getElementById('scale-v-val').value = rv.scale; document.getElementById('fit-v').value = rv.fit; }
+    // Auto-save state for next page load
+    try { localStorage.setItem('sg_last_state', JSON.stringify({ h: rh, v: rv })); } catch(e) {}
     renderGrid();
   } catch(e) {}
 }
@@ -494,7 +505,7 @@ function updateGridOverlay() {
     return;
   }
   const pct = (100 / divisions).toFixed(4) + '%';
-  const line = 'rgba(255,255,255,0.18)';
+  const line = 'rgba(255,255,255,0.3)';
   overlays.forEach(o => {
     o.style.backgroundImage = `linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`;
     o.style.backgroundSize = `${pct} ${pct}`;
@@ -507,6 +518,84 @@ function copyUrl(slot) {
     v: 'https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html'
   };
   navigator.clipboard.writeText(urls[slot]).then(() => setStatus(`Slot ${slot.toUpperCase()} URL copied to clipboard.`, true));
+}
+
+// ── Gallery upload ─────────────────────────────────
+function onUlFileChange() {
+  const files = document.getElementById('ul-file').files;
+  const p = document.getElementById('ul-preview');
+  const nameRow = document.getElementById('ul-name-row');
+  const info = document.getElementById('ul-multi-info');
+  document.getElementById('ul-status').style.display = 'none';
+  if (!files.length) return;
+  if (files.length === 1) {
+    p.src = URL.createObjectURL(files[0]);
+    p.style.display = 'block';
+    if (!document.getElementById('ul-name').value)
+      document.getElementById('ul-name').value = files[0].name.replace(/\.[^.]+$/, '');
+    nameRow.style.display = 'block';
+    info.style.display = 'none';
+  } else {
+    p.style.display = 'none';
+    nameRow.style.display = 'none';
+    document.getElementById('ul-name').value = '';
+    info.textContent = `${files.length} files selected — filenames used as names`;
+    info.style.display = 'block';
+  }
+}
+
+function setUlStatus(msg, ok) {
+  const el = document.getElementById('ul-status');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.background = ok ? '#14532d' : '#450a0a';
+  el.style.color = ok ? '#86efac' : '#fca5a5';
+}
+
+async function galleryUploadOne(file, name, tags) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('name', name);
+  fd.append('tags', tags);
+  const r = await fetch(`${WORKER}/upload`, { method: 'POST', headers: { 'X-API-Key': apiKey() }, body: fd });
+  return r.json();
+}
+
+async function galleryUpload() {
+  const files = document.getElementById('ul-file').files;
+  const tags = document.getElementById('ul-tags').value.trim();
+  if (!files.length) { setUlStatus('Select a file first.', false); return; }
+  if (files.length === 1) {
+    const name = document.getElementById('ul-name').value.trim() || files[0].name.replace(/\.[^.]+$/, '');
+    setUlStatus('Uploading…', true);
+    try {
+      const data = await galleryUploadOne(files[0], name, tags);
+      if (data.ok) {
+        setUlStatus(`✓ Uploaded: ${name}`, true);
+        document.getElementById('ul-file').value = '';
+        document.getElementById('ul-preview').style.display = 'none';
+        document.getElementById('ul-name').value = '';
+        document.getElementById('ul-tags').value = '';
+        await loadGallery();
+      } else { setUlStatus(`Error: ${data.error}`, false); }
+    } catch(e) { setUlStatus(`Upload failed: ${e.message}`, false); }
+  } else {
+    let done = 0, failed = 0;
+    for (const file of files) {
+      const name = file.name.replace(/\.[^.]+$/, '');
+      setUlStatus(`Uploading ${done + failed + 1} / ${files.length}: ${name}…`, true);
+      try {
+        const data = await galleryUploadOne(file, name, tags);
+        if (data.ok) done++; else failed++;
+      } catch(e) { failed++; }
+    }
+    setUlStatus(failed === 0 ? `✓ ${done} file(s) uploaded.` : `${done} uploaded, ${failed} failed.`, failed === 0);
+    document.getElementById('ul-file').value = '';
+    document.getElementById('ul-multi-info').style.display = 'none';
+    document.getElementById('ul-name-row').style.display = 'block';
+    document.getElementById('ul-tags').value = '';
+    await loadGallery();
+  }
 }
 
 // ── Grid ──────────────────────────────────────────
@@ -655,15 +744,12 @@ async function deleteSelected() {
 
 // ── Slot management ───────────────────────────────
 async function selectSlot(slot, key, name) {
-  const scale = parseInt(document.getElementById(`scale-${slot}`).value);
-  const fit = document.getElementById(`fit-${slot}`).value;
-  const prev = slot === 'h' ? activeH : activeV;
-  const x = prev?.x || 50, y = prev?.y || 50;
+  // Always load library images at neutral defaults — positioning is done in the slot preview
   try {
     await fetch(`${WORKER}/select`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
-      body: JSON.stringify({ slot, key, name, scale, fit, x, y })
+      body: JSON.stringify({ slot, key, name, scale: 100, fit: 'contain', x: 50, y: 50 })
     });
     setStatus(`Set ${slot.toUpperCase()}: ${name}`, true);
     await pollActive();
@@ -1037,5 +1123,27 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(el => closeModal(el.id)); });
 </script>
+
+<!-- Upload Modal -->
+<div class="modal-overlay" id="upload-modal">
+  <div class="modal-box" style="max-width:480px;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="font-size:1rem;color:#fff">📤 Upload Images</h2>
+      <button class="btn btn-gray btn-sm" onclick="closeModal('upload-modal')">✕</button>
+    </div>
+    <label style="font-size:.8rem;color:#aaa;display:block;margin-bottom:6px">Image files (JPG, PNG, WebP, AVIF, GIF, SVG, BMP)</label>
+    <input type="file" id="ul-file" accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/svg+xml,image/bmp" multiple onchange="onUlFileChange()" style="width:100%;padding:8px;background:#222;border:1px solid #444;color:#fff;border-radius:6px;margin-bottom:12px;font-size:.85rem">
+    <img id="ul-preview" style="max-width:100%;max-height:160px;border-radius:6px;margin-bottom:12px;display:none">
+    <div id="ul-multi-info" style="display:none;margin-bottom:12px;font-size:.85rem;color:#86efac"></div>
+    <div id="ul-name-row">
+      <label style="font-size:.8rem;color:#aaa;display:block;margin-bottom:4px">Name</label>
+      <input type="text" id="ul-name" placeholder="Image name" style="width:100%;padding:8px;background:#222;border:1px solid #444;color:#fff;border-radius:6px;margin-bottom:12px;font-size:.85rem">
+    </div>
+    <label style="font-size:.8rem;color:#aaa;display:block;margin-bottom:4px">Tags (comma separated)</label>
+    <input type="text" id="ul-tags" placeholder="e.g. phone, samsung" style="width:100%;padding:8px;background:#222;border:1px solid #444;color:#fff;border-radius:6px;margin-bottom:16px;font-size:.85rem">
+    <button class="btn btn-blue" style="width:100%" onclick="galleryUpload()">Upload</button>
+    <div id="ul-status" style="margin-top:12px;padding:10px;border-radius:6px;font-size:.83rem;display:none"></div>
+  </div>
+</div>
 </body>
 </html>
