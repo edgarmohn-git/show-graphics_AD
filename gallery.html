@@ -36,6 +36,10 @@ a,button{cursor:pointer}
 .canvas-wrap.ratio-h{aspect-ratio:16/9}
 .canvas-wrap.ratio-v{aspect-ratio:9/16;max-height:calc((50vw - 28px) * (9/16));width:auto;margin:0 auto}
 .canvas-wrap img.preview-img{position:absolute;transform-origin:center center;transition:transform .1s,left .1s,top .1s}
+.grid-overlay{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:.4}
+.grid-controls{display:flex;gap:10px;align-items:center;padding:6px 16px;background:#111;border-bottom:1px solid #1e1e1e;font-size:.75rem;color:#666}
+.grid-controls select{background:#1e1e1e;color:#ccc;border:1px solid #2a2a2a;border-radius:4px;padding:3px 7px;font-size:.75rem}
+.grid-controls label{display:flex;align-items:center;gap:5px;cursor:pointer;color:#777}
 .canvas-empty{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:.8rem;color:#444;pointer-events:none}
 .slot-controls{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
 .slot-controls label{font-size:.75rem;color:#666}
@@ -118,7 +122,7 @@ a,button{cursor:pointer}
   <button class="btn btn-amber btn-sm" id="select-btn" onclick="toggleSelectMode()">☑ Select</button>
   <button class="btn btn-red btn-sm" id="delete-sel-btn" style="display:none" onclick="deleteSelected()">🗑 Delete (<span id="sel-count">0</span>)</button>
   <span style="color:#333;padding:0 4px">|</span>
-  <input type="text" id="layout-name" placeholder="Layout name…" style="width:140px">
+  <input type="text" id="layout-name" placeholder="← Name your layout first, then save" style="width:240px" title="Enter a name for your layout, then click 💾 Save H, Save V, or Save Both">
   <button class="btn btn-blue btn-sm" onclick="saveLayout('h')" title="Save H slot as layout">💾 Save H</button>
   <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="saveLayout('v')" title="Save V slot as layout">💾 Save V</button>
   <button class="btn btn-green btn-sm" onclick="saveLayout('both')" title="Save both slots as layout">💾 Save Both</button>
@@ -128,9 +132,10 @@ a,button{cursor:pointer}
 <!-- Slot previews -->
 <div class="slots">
   <div class="slot-panel">
-    <h3>🔵 Slot H — Horizontal <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a></h3>
+    <h3>🔵 Slot H — Horizontal <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a><button onclick="copyUrl('h')" title="Copy URL" style="background:none;border:none;color:#444;cursor:pointer;font-size:.75rem;margin-left:4px;padding:0" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#444'">📋</button></h3>
     <div class="canvas-wrap ratio-h" id="preview-h">
       <div class="canvas-empty">empty</div>
+      <div class="grid-overlay" id="grid-overlay-h"></div>
     </div>
     <div class="slot-name" id="name-h">—</div>
     <div class="slot-controls">
@@ -146,9 +151,10 @@ a,button{cursor:pointer}
     </div>
   </div>
   <div class="slot-panel">
-    <h3>🟣 Slot V — Vertical <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a></h3>
+    <h3>🟣 Slot V — Vertical <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a><button onclick="copyUrl('v')" title="Copy URL" style="background:none;border:none;color:#444;cursor:pointer;font-size:.75rem;margin-left:4px;padding:0" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#444'">📋</button></h3>
     <div class="canvas-wrap ratio-v" id="preview-v">
       <div class="canvas-empty">empty</div>
+      <div class="grid-overlay" id="grid-overlay-v"></div>
     </div>
     <div class="slot-name" id="name-v">—</div>
     <div class="slot-controls">
@@ -163,6 +169,21 @@ a,button{cursor:pointer}
       <button class="btn btn-red btn-sm" onclick="clearSlot('v')">Clear</button>
     </div>
   </div>
+</div>
+
+<!-- Grid controls -->
+<div class="grid-controls">
+  <span>Preview grid:</span>
+  <select id="grid-size" onchange="updateGridOverlay()">
+    <option value="0">Off</option>
+    <option value="2">2×2</option>
+    <option value="3">3×3</option>
+    <option value="4" selected>4×4</option>
+    <option value="5">5×5</option>
+    <option value="10">10×10</option>
+    <option value="20">20×20</option>
+  </select>
+  <label><input type="checkbox" id="snap-grid"> Snap to grid</label>
 </div>
 
 <!-- Grid -->
@@ -279,6 +300,7 @@ let currentEditKey = null;
 let dragState = null;
 let selectMode = false;
 let selectedKeys = new Set();
+let selectedLayouts = new Set();
 
 // ── Init ──────────────────────────────────────────
 window.onload = () => {
@@ -287,6 +309,7 @@ window.onload = () => {
   loadGallery();
   pollActive();
   setInterval(pollActive, 3000);
+  updateGridOverlay();
 };
 
 function saveKey() {
@@ -431,6 +454,13 @@ async function saveSlotState(slot) {
 }
 
 // ── Drag to place ─────────────────────────────────
+function snapVal(val) {
+  const divisions = parseInt(document.getElementById('grid-size')?.value || '0');
+  if (!divisions || !document.getElementById('snap-grid')?.checked) return val;
+  const step = 100 / divisions;
+  return Math.round(val / step) * step;
+}
+
 function initDrag(wrap, slot) {
   wrap.addEventListener('pointerdown', e => {
     e.preventDefault();
@@ -446,14 +476,37 @@ function initDrag(wrap, slot) {
     const dy = ((e.clientY - dragState.startY) / dragState.rect.height) * 100;
     const state = slot === 'h' ? activeH : activeV;
     if (!state) return;
-    state.x = dragState.ox + dx;
-    state.y = dragState.oy + dy;
+    state.x = snapVal(dragState.ox + dx);
+    state.y = snapVal(dragState.oy + dy);
     const img = wrap.querySelector('img.preview-img');
     if (img) applyImgStyle(img, state, wrap);
   });
   wrap.addEventListener('pointerup', () => {
     if (dragState?.slot === slot) { saveSlotState(slot); dragState = null; }
   });
+}
+
+function updateGridOverlay() {
+  const divisions = parseInt(document.getElementById('grid-size').value);
+  const overlays = document.querySelectorAll('.grid-overlay');
+  if (!divisions) {
+    overlays.forEach(o => { o.style.backgroundImage = 'none'; });
+    return;
+  }
+  const pct = (100 / divisions).toFixed(4) + '%';
+  const line = 'rgba(255,255,255,0.18)';
+  overlays.forEach(o => {
+    o.style.backgroundImage = `linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`;
+    o.style.backgroundSize = `${pct} ${pct}`;
+  });
+}
+
+function copyUrl(slot) {
+  const urls = {
+    h: 'https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html',
+    v: 'https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html'
+  };
+  navigator.clipboard.writeText(urls[slot]).then(() => setStatus(`Slot ${slot.toUpperCase()} URL copied to clipboard.`, true));
 }
 
 // ── Grid ──────────────────────────────────────────
@@ -476,7 +529,9 @@ function renderGrid() {
       const subtitle = [layout.h ? 'H: '+layout.h.name : '', layout.v ? 'V: '+layout.v.name : ''].filter(Boolean).join(' · ');
       const card = document.createElement('div');
       card.className = 'card layout-card';
+      const isLayoutPicked = selectedLayouts.has(name);
       card.innerHTML = `
+        <input type="checkbox" class="card-cb" ${isLayoutPicked ? 'checked' : ''} style="display:${selectMode?'block':'none'}" onchange="toggleLayoutSelect('${safeName}',this)">
         <div class="layout-flag">LAYOUT</div>
         <img class="card-thumb" src="${layout.thumb||''}" style="object-fit:cover">
         <div class="card-body">
@@ -486,6 +541,7 @@ function renderGrid() {
             <button class="btn btn-blue btn-sm" onclick="recallLayoutToSlot('${safeName}','h')">↩ H</button>
             <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="recallLayoutToSlot('${safeName}','v')">↩ V</button>
             <button class="btn btn-green btn-sm" onclick="recallLayoutToSlot('${safeName}','both')">↩ Both</button>
+            <button class="btn btn-gray btn-sm" onclick="renameLayout('${safeName}')" title="Rename layout">✏️</button>
             <button class="btn btn-red btn-sm" onclick="deleteLayoutCard('${safeName}')">🗑</button>
           </div>
         </div>`;
@@ -531,10 +587,9 @@ function renderGrid() {
 // ── Multi-select ──────────────────────────────────
 function toggleSelectMode() {
   selectMode = !selectMode;
-  if (!selectMode) { selectedKeys.clear(); }
+  if (!selectMode) { selectedKeys.clear(); selectedLayouts.clear(); }
   const btn = document.getElementById('select-btn');
   btn.textContent = selectMode ? '✕ Cancel select' : '☑ Select';
-  btn.className = selectMode ? 'btn btn-amber btn-sm' : 'btn btn-amber btn-sm';
   document.getElementById('delete-sel-btn').style.display = selectMode ? 'inline-flex' : 'none';
   updateSelCount();
   renderGrid();
@@ -554,12 +609,31 @@ function toggleSelect(key, cb) {
 }
 
 function updateSelCount() {
-  document.getElementById('sel-count').textContent = selectedKeys.size;
+  document.getElementById('sel-count').textContent = selectedKeys.size + selectedLayouts.size;
+}
+
+function toggleLayoutSelect(name, cb) {
+  if (cb.checked) selectedLayouts.add(name); else selectedLayouts.delete(name);
+  updateSelCount();
+}
+
+function renameLayout(oldName) {
+  const newName = prompt('Rename layout:', oldName);
+  if (!newName || newName.trim() === oldName) return;
+  const n = newName.trim();
+  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
+  if (layouts[n] && !confirm(`Layout "${n}" already exists. Overwrite?`)) return;
+  layouts[n] = layouts[oldName];
+  delete layouts[oldName];
+  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  renderGrid();
+  setStatus(`Layout renamed to "${n}".`, true);
 }
 
 async function deleteSelected() {
-  if (!selectedKeys.size) return;
-  if (!confirm(`Delete ${selectedKeys.size} image(s)?`)) return;
+  const total = selectedKeys.size + selectedLayouts.size;
+  if (!total) return;
+  if (!confirm(`Delete ${total} item(s)?`)) return;
   let done = 0;
   for (const key of selectedKeys) {
     try {
@@ -567,9 +641,15 @@ async function deleteSelected() {
       done++;
     } catch(e) {}
   }
-  setStatus(`Deleted ${done} image(s).`, true);
-  selectedKeys.clear();
-  toggleSelectMode(); // exit select mode
+  if (selectedLayouts.size) {
+    const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
+    for (const name of selectedLayouts) delete layouts[name];
+    localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  }
+  const msg = [done ? `${done} image(s)` : '', selectedLayouts.size ? `${selectedLayouts.size} layout(s)` : ''].filter(Boolean).join(' and ');
+  setStatus(`Deleted ${msg}.`, true);
+  selectedKeys.clear(); selectedLayouts.clear();
+  toggleSelectMode();
   await loadGallery();
 }
 
