@@ -50,7 +50,8 @@ a,button{cursor:pointer}
 /* ── Grid ── */
 .grid-wrap{padding:12px 16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.card{position:relative;background:#1a1a1a;border-radius:7px;overflow:hidden;border:2px solid transparent;transition:border-color .2s}
+.card{position:relative;background:#1a1a1a;border-radius:7px;overflow:hidden;border:2px solid transparent;transition:border-color .2s,transform .15s;transform-origin:center top}
+.card:hover{transform:scale(1.9);z-index:30}
 .card.sel-h{border-color:#2563eb}
 .card.sel-v{border-color:#7c3aed}
 .card.sel-hv{border-color:#0d9488}
@@ -1232,7 +1233,7 @@ async function captureLayoutThumb(slot) {
       if (img) {
         ctx.save();
         ctx.beginPath(); ctx.rect(boxX, 0, boxW, TH); ctx.clip();
-        const scale = Math.max(boxW / img.naturalWidth, TH / img.naturalHeight);
+        const scale = Math.min(boxW / img.naturalWidth, TH / img.naturalHeight);
         const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
         ctx.drawImage(img, boxX + (boxW - dw) / 2, (TH - dh) / 2, dw, dh);
         ctx.restore();
