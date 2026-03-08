@@ -66,18 +66,18 @@ a,button{cursor:pointer}
 /* ── Edit Modal ── */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;overflow:auto;padding:20px}
 .modal-overlay.open{display:flex;align-items:flex-start;justify-content:center}
-.modal{background:#161616;border-radius:10px;width:100%;max-width:900px;overflow:hidden}
+.modal{background:#161616;border-radius:10px;width:100%;max-width:min(1400px,96vw);overflow:hidden}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #2a2a2a}
 .modal-header h2{font-size:1rem;color:#fff}
-.modal-body{padding:16px}
+.modal-body{padding:16px;max-height:82vh;overflow-y:auto}
 .edit-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:640px){.edit-layout{grid-template-columns:1fr}}
 .edit-section h4{font-size:.78rem;color:#888;margin-bottom:8px;text-transform:uppercase}
-.crop-wrap{max-height:300px;overflow:hidden;background:#111;border-radius:5px}
+.crop-wrap{max-height:520px;overflow:hidden;background:#111;border-radius:5px}
 .crop-wrap img{max-width:100%;display:block}
 .knockout-wrap{display:flex;flex-direction:column;gap:10px}
 .ko-canvas-wrap{position:relative;background:repeating-conic-gradient(#222 0% 25%,#1a1a1a 0% 50%) 0 0/20px 20px;border-radius:5px;overflow:hidden;min-height:120px;display:flex;align-items:center;justify-content:center}
-.ko-canvas-wrap canvas{max-width:100%;max-height:300px;display:block}
+.ko-canvas-wrap canvas{max-width:100%;max-height:520px;display:block}
 .ko-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .ko-row label{font-size:.78rem;color:#888}
 .ko-row input[type=color]{width:36px;height:30px;border:none;border-radius:4px;cursor:pointer;background:none}
@@ -115,7 +115,9 @@ a,button{cursor:pointer}
   <button class="btn btn-red btn-sm" id="delete-sel-btn" style="display:none" onclick="deleteSelected()">🗑 Delete (<span id="sel-count">0</span>)</button>
   <span style="color:#333;padding:0 4px">|</span>
   <input type="text" id="layout-name" placeholder="Layout name…" style="width:140px">
-  <button class="btn btn-green btn-sm" onclick="saveLayout()">💾 Save Layout</button>
+  <button class="btn btn-blue btn-sm" onclick="saveLayout('h')" title="Save H slot only">💾 H</button>
+  <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="saveLayout('v')" title="Save V slot only">💾 V</button>
+  <button class="btn btn-green btn-sm" onclick="saveLayout('both')" title="Save both slots">💾 Both</button>
   <select id="layout-select" onchange="layoutSelected()" style="background:#1e1e1e;color:#ccc;border:1px solid #333;border-radius:4px;padding:6px 8px;font-size:.82rem">
     <option value="">— Recall layout —</option>
   </select>
@@ -879,17 +881,21 @@ async function captureLayoutThumb() {
   return c.toDataURL('image/jpeg', 0.8);
 }
 
-async function saveLayout() {
+async function saveLayout(slot = 'both') {
   const name = document.getElementById('layout-name').value.trim();
   if (!name) { setStatus('Enter a layout name first.', false); return; }
-  const thumb = await captureLayoutThumb();
   const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
-  layouts[name] = { h: activeH ? { ...activeH } : null, v: activeV ? { ...activeV } : null, thumb };
+  const entry = layouts[name] || {};
+  if (slot === 'h' || slot === 'both') entry.h = activeH ? { ...activeH } : null;
+  if (slot === 'v' || slot === 'both') entry.v = activeV ? { ...activeV } : null;
+  entry.thumb = await captureLayoutThumb();
+  layouts[name] = entry;
   localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
   loadLayoutList();
   document.getElementById('layout-select').value = name;
   layoutSelected();
-  setStatus(`Layout "${name}" saved.`, true);
+  const label = slot === 'both' ? 'H+V' : slot.toUpperCase();
+  setStatus(`Layout "${name}" saved (${label}).`, true);
 }
 
 function layoutSelected() {
@@ -909,6 +915,7 @@ async function recallLayout() {
   const layout = layouts[name];
   if (!layout) return;
   for (const slot of ['h', 'v']) {
+    if (!(slot in layout)) continue; // slot not saved in this layout — leave it untouched
     const state = layout[slot];
     if (state) {
       await fetch(`${WORKER}/select`, {
