@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; }
+  html, body { width: 2160px; height: 3840px; background: transparent; overflow: hidden; }
+  #stage {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  canvas { image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="qr"></canvas></div>
+<script>
+// QR code generator — adapted from qrcode-generator (MIT)
+// Minimal inline implementation using qrcode-generator lib via CDN
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const url = params.get('url') || 'https://example.com';
+  const size = parseInt(params.get('size') || '600');
+
+  const stage = document.getElementById('stage');
+  stage.innerHTML = '';
+
+  new QRCode(stage, {
+    text: url,
+    width: size,
+    height: size,
+    colorDark: '#000000',
+    colorLight: 'rgba(0,0,0,0)',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+</script>
+</body>
+</html>

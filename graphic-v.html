@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 2160px; height: 3840px; background: transparent; overflow: hidden; }
+  #stage { position: relative; width: 100%; height: 100%; }
+  #img {
+    position: absolute;
+    max-width: 100%; max-height: 100%;
+    transform-origin: center center;
+    transition: opacity 0.3s;
+  }
+  #img.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage"><img id="img" class="hidden"></div>
+<script>
+  const WORKER = 'https://show-graphics-ad.mohn-edgar.workers.dev';
+  const SLOT = 'v';
+  const img = document.getElementById('img');
+  let currentKey = null;
+
+  async function poll() {
+    try {
+      const r = await fetch(`${WORKER}/active?slot=${SLOT}`);
+      const state = await r.json();
+      if (!state) { img.classList.add('hidden'); currentKey = null; return; }
+      if (state.key !== currentKey) {
+        currentKey = state.key;
+        img.classList.add('hidden');
+        img.onload = () => img.classList.remove('hidden');
+        img.src = `${WORKER}/img/${encodeURIComponent(state.key)}`;
+      }
+      const s = state.scale / 100;
+      const fit = state.fit === 'cover' ? 'cover' : 'contain';
+      img.style.objectFit = fit;
+      img.style.width = fit === 'contain' ? 'auto' : '3840px';
+      img.style.height = fit === 'contain' ? 'auto' : '2160px';
+      img.style.transform = `translate(-50%, -50%) scale(${s})`;
+      img.style.left = state.x + '%';
+      img.style.top = state.y + '%';
+    } catch(e) {}
+  }
+
+  poll();
+  setInterval(poll, 1500);
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+name = "show-graphics-ad"
+main = "worker/index.js"
+compatibility_date = "2024-01-01"
+
+r2_buckets = [
+  { binding = "BUCKET", bucket_name = "show-graphics-ad" }
+]
+
+kv_namespaces = [
+  { binding = "KV", id = "49d4d8a3c9ae4bd6a650bb63e063b14f" }
+]
+
+[vars]
+ALLOWED_ORIGIN = "https://edgarmohn-git.github.io"

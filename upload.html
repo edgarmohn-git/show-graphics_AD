@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upload — Show Graphics</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; background: #111; color: #eee; }
+  h1 { font-size: 1.4rem; margin-bottom: 24px; color: #fff; }
+  label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: #aaa; }
+  input[type=text], input[type=password], input[type=file] {
+    width: 100%; padding: 10px; background: #222; border: 1px solid #444;
+    color: #fff; border-radius: 6px; margin-bottom: 16px; font-size: 1rem;
+  }
+  button {
+    width: 100%; padding: 12px; background: #2563eb; color: #fff;
+    border: none; border-radius: 6px; font-size: 1rem; cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+  #status { margin-top: 16px; padding: 12px; border-radius: 6px; display: none; }
+  #status.ok { background: #14532d; color: #86efac; display: block; }
+  #status.err { background: #450a0a; color: #fca5a5; display: block; }
+  #preview { max-width: 100%; max-height: 200px; margin-bottom: 16px; border-radius: 6px; display: none; }
+  .section { background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<h1>📤 Upload Image</h1>
+
+<div class="section" id="auth-section">
+  <label>API Key</label>
+  <input type="password" id="api-key" placeholder="Enter API key">
+  <button onclick="saveKey()">Save Key</button>
+</div>
+
+<div class="section">
+  <label>Image file (JPG, PNG, WebP)</label>
+  <input type="file" id="file" accept="image/*" onchange="preview()">
+  <img id="preview">
+
+  <label>Name (shown in gallery)</label>
+  <input type="text" id="name" placeholder="e.g. Samsung Galaxy S25">
+
+  <label>Tags (comma separated)</label>
+  <input type="text" id="tags" placeholder="e.g. phone, samsung, device">
+
+  <button onclick="upload()">Upload</button>
+</div>
+
+<div id="status"></div>
+
+<script>
+  const WORKER = 'https://show-graphics-ad.mohn-edgar.workers.dev';
+
+  window.onload = () => {
+    const saved = sessionStorage.getItem('sg_api_key');
+    if (saved) document.getElementById('api-key').value = saved;
+  };
+
+  function saveKey() {
+    const k = document.getElementById('api-key').value.trim();
+    if (k) { sessionStorage.setItem('sg_api_key', k); setStatus('Key saved.', true); }
+  }
+
+  function preview() {
+    const file = document.getElementById('file').files[0];
+    if (!file) return;
+    const p = document.getElementById('preview');
+    p.src = URL.createObjectURL(file);
+    p.style.display = 'block';
+    if (!document.getElementById('name').value)
+      document.getElementById('name').value = file.name.replace(/\.[^.]+$/, '');
+  }
+
+  function setStatus(msg, ok) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = ok ? 'ok' : 'err';
+  }
+
+  async function upload() {
+    const key = sessionStorage.getItem('sg_api_key');
+    if (!key) { setStatus('Set your API key first.', false); return; }
+    const file = document.getElementById('file').files[0];
+    if (!file) { setStatus('Select a file first.', false); return; }
+    const name = document.getElementById('name').value.trim() || file.name;
+    const tags = document.getElementById('tags').value.trim();
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', name);
+    fd.append('tags', tags);
+
+    setStatus('Uploading…', true);
+    try {
+      const r = await fetch(`${WORKER}/upload`, {
+        method: 'POST', headers: { 'X-API-Key': key }, body: fd
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setStatus(`✓ Uploaded: ${name}`, true);
+        document.getElementById('file').value = '';
+        document.getElementById('preview').style.display = 'none';
+        document.getElementById('name').value = '';
+        document.getElementById('tags').value = '';
+      } else {
+        setStatus(`Error: ${data.error}`, false);
+      }
+    } catch(e) {
+      setStatus(`Upload failed: ${e.message}`, false);
+    }
+  }
+</script>
+</body>
+</html>
