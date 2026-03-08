@@ -95,6 +95,18 @@ export default {
       return json(index, 200, origin);
     }
 
+    // --- Rebuild index from R2 (recovers lost KV index) ---
+    if (request.method === 'GET' && path === '/rebuild') {
+      const listed = await env.BUCKET.list();
+      const index = listed.objects.map(obj => {
+        const noExt = obj.key.replace(/\.[^.]+$/, '');
+        const name = noExt.replace(/^\d+_/, '').replace(/_/g, ' ');
+        return { key: obj.key, name, tags: [], uploadedAt: new Date(obj.uploaded).toISOString() };
+      });
+      await env.KV.put('image_index', JSON.stringify(index));
+      return json({ ok: true, rebuilt: index.length }, 200, origin);
+    }
+
     // --- Set active image for slot ---
     if (request.method === 'PUT' && path === '/select') {
       const body = await request.json();

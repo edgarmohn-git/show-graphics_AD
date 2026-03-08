@@ -33,7 +33,7 @@ a,button{cursor:pointer}
 .slot-panel h3{font-size:.78rem;color:#666;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
 .canvas-wrap{position:relative;overflow:hidden;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;cursor:move}
 .canvas-wrap.ratio-h{aspect-ratio:16/9}
-.canvas-wrap.ratio-v{aspect-ratio:9/16;max-height:180px;width:auto;margin:0 auto}
+.canvas-wrap.ratio-v{aspect-ratio:9/16;max-height:calc((50vw - 28px) * (9/16));width:auto;margin:0 auto}
 .canvas-wrap img.preview-img{position:absolute;transform-origin:center center;transition:transform .1s,left .1s,top .1s}
 .canvas-empty{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:.8rem;color:#444;pointer-events:none}
 .slot-controls{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
@@ -97,6 +97,7 @@ a,button{cursor:pointer}
   <button class="btn btn-gray" onclick="saveKey()">Save Key</button>
   <input type="text" id="search" placeholder="Search name or tag…" oninput="renderGrid()">
   <button class="btn btn-gray" onclick="loadGallery()">↺ Refresh</button>
+  <button class="btn btn-gray" onclick="rebuildIndex()" title="Rebuild image list from R2 storage (use if gallery shows empty after images were uploaded)">⚙ Rebuild Index</button>
 </div>
 <div id="status"></div>
 
@@ -254,9 +255,25 @@ function setStatus(msg, ok) {
 async function loadGallery() {
   try {
     const r = await fetch(`${WORKER}/list`, { headers: { 'X-API-Key': apiKey() } });
-    images = await r.json();
+    const data = await r.json();
+    if (!Array.isArray(data)) {
+      setStatus(data.error === 'Unauthorized' ? 'Enter API key and refresh.' : 'List error: ' + (data.error || 'unexpected response'), false);
+      return;
+    }
+    images = data;
     renderGrid();
   } catch(e) { setStatus('Load failed: ' + e.message, false); }
+}
+
+async function rebuildIndex() {
+  if (!apiKey()) { setStatus('Enter API key first.', false); return; }
+  setStatus('Rebuilding index from R2…', true);
+  try {
+    const r = await fetch(`${WORKER}/rebuild`, { headers: { 'X-API-Key': apiKey() } });
+    const data = await r.json();
+    if (data.ok) { setStatus(`Rebuilt: ${data.rebuilt} image(s) found.`, true); await loadGallery(); }
+    else setStatus('Rebuild error: ' + (data.error || '?'), false);
+  } catch(e) { setStatus('Rebuild failed: ' + e.message, false); }
 }
 
 async function pollActive() {
@@ -293,9 +310,12 @@ function updatePreview(slot) {
 function applyImgStyle(img, state, wrap) {
   const s = state.scale / 100;
   if (state.fit === 'cover') {
-    img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
+    img.style.width = '100%'; img.style.height = '100%';
+    img.style.objectFit = 'cover';
+    img.style.maxWidth = ''; img.style.maxHeight = '';
   } else {
-    img.style.width = 'auto'; img.style.height = 'auto'; img.style.objectFit = 'contain';
+    img.style.width = 'auto'; img.style.height = 'auto';
+    img.style.objectFit = 'contain';
     img.style.maxWidth = '100%'; img.style.maxHeight = '100%';
   }
   img.style.left = state.x + '%';
