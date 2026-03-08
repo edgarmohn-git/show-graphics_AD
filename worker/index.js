@@ -86,6 +86,31 @@ export default {
       return error('Unauthorized', 401, origin);
     }
 
+    // --- List layouts ---
+    if (request.method === 'GET' && path === '/layouts') {
+      const layouts = (await env.KV.get('layouts', 'json')) || {};
+      return json(layouts, 200, origin);
+    }
+
+    // --- Save/update layout ---
+    if (request.method === 'PUT' && path.startsWith('/layouts/')) {
+      const name = decodeURIComponent(path.slice(9));
+      const body = await request.json();
+      const layouts = (await env.KV.get('layouts', 'json')) || {};
+      layouts[name] = body;
+      await env.KV.put('layouts', JSON.stringify(layouts));
+      return json({ ok: true }, 200, origin);
+    }
+
+    // --- Delete layout ---
+    if (request.method === 'DELETE' && path.startsWith('/layouts/')) {
+      const name = decodeURIComponent(path.slice(9));
+      const layouts = (await env.KV.get('layouts', 'json')) || {};
+      delete layouts[name];
+      await env.KV.put('layouts', JSON.stringify(layouts));
+      return json({ ok: true }, 200, origin);
+    }
+
     // --- Upload image ---
     if (request.method === 'POST' && path === '/upload') {
       const formData = await request.formData();

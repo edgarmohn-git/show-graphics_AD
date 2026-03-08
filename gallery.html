@@ -295,8 +295,8 @@ a,button{cursor:pointer}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script>
 const WORKER = 'https://show-graphics-ad.mohn-edgar.workers.dev';
-const LAYOUTS_KEY = 'sg_layouts';
 let images = [];
+let layouts = {};
 let activeH = null, activeV = null;
 let cropper = null;
 let croppedImageData = null;
@@ -321,6 +321,7 @@ window.onload = () => {
     }
   } catch(e) {}
   loadGallery();
+  loadLayouts();
   pollActive();
   setInterval(pollActive, 3000);
   updateGridOverlay();
@@ -331,6 +332,15 @@ function saveKey() {
   if (k) { sessionStorage.setItem('sg_api_key', k); setStatus('Key saved.', true); }
 }
 function apiKey() { return sessionStorage.getItem('sg_api_key') || ''; }
+
+async function loadLayouts() {
+  try {
+    const r = await fetch(`${WORKER}/layouts`, { headers: { 'X-API-Key': apiKey() } });
+    if (r.ok) layouts = await r.json();
+    else layouts = {};
+  } catch(e) { layouts = {}; }
+  renderGrid();
+}
 
 function setStatus(msg, ok) {
   const el = document.getElementById('status');
@@ -620,7 +630,6 @@ function renderGrid() {
   grid.innerHTML = '';
 
   // ── Saved layout cards ──
-  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
   const layoutNames = Object.keys(layouts).sort();
   {
     const lbl = document.createElement('div');
@@ -729,17 +738,23 @@ function toggleLayoutSelect(name, cb) {
   updateSelCount();
 }
 
-function renameLayout(oldName) {
+async function renameLayout(oldName) {
   const newName = prompt('Rename layout:', oldName);
   if (!newName || newName.trim() === oldName) return;
   const n = newName.trim();
-  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
   if (layouts[n] && !confirm(`Layout "${n}" already exists. Overwrite?`)) return;
-  layouts[n] = layouts[oldName];
-  delete layouts[oldName];
-  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
-  renderGrid();
-  setStatus(`Layout renamed to "${n}".`, true);
+  try {
+    await fetch(`${WORKER}/layouts/${encodeURIComponent(n)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body: JSON.stringify(layouts[oldName])
+    });
+    await fetch(`${WORKER}/layouts/${encodeURIComponent(oldName)}`, { method: 'DELETE', headers: { 'X-API-Key': apiKey() } });
+    layouts[n] = layouts[oldName];
+    delete layouts[oldName];
+    renderGrid();
+    setStatus(`Layout renamed to "${n}".`, true);
+  } catch(e) { setStatus('Error renaming layout: ' + e.message, false); }
 }
 
 async function deleteSelected() {
@@ -753,10 +768,11 @@ async function deleteSelected() {
       done++;
     } catch(e) {}
   }
-  if (selectedLayouts.size) {
-    const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
-    for (const name of selectedLayouts) delete layouts[name];
-    localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  for (const name of selectedLayouts) {
+    try {
+      await fetch(`${WORKER}/layouts/${encodeURIComponent(name)}`, { method: 'DELETE', headers: { 'X-API-Key': apiKey() } });
+      delete layouts[name];
+    } catch(e) {}
   }
   const msg = [done ? `${done} image(s)` : '', selectedLayouts.size ? `${selectedLayouts.size} layout(s)` : ''].filter(Boolean).join(' and ');
   setStatus(`Deleted ${msg}.`, true);
@@ -1092,20 +1108,24 @@ async function captureLayoutThumb() {
 async function saveLayout(slot = 'both') {
   const name = document.getElementById('layout-name').value.trim();
   if (!name) { setStatus('Enter a layout name first.', false); return; }
-  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
   const entry = layouts[name] || {};
   if (slot === 'h' || slot === 'both') entry.h = activeH ? { ...activeH } : null;
   if (slot === 'v' || slot === 'both') entry.v = activeV ? { ...activeV } : null;
   entry.thumb = await captureLayoutThumb();
-  layouts[name] = entry;
-  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
-  renderGrid();
-  const label = slot === 'both' ? 'H+V' : slot.toUpperCase();
-  setStatus(`Layout "${name}" saved (${label}).`, true);
+  try {
+    await fetch(`${WORKER}/layouts/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body: JSON.stringify(entry)
+    });
+    layouts[name] = entry;
+    renderGrid();
+    const label = slot === 'both' ? 'H+V' : slot.toUpperCase();
+    setStatus(`Layout "${name}" saved (${label}).`, true);
+  } catch(e) { setStatus('Error saving layout: ' + e.message, false); }
 }
 
 async function recallLayoutToSlot(name, slot) {
-  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
   const layout = layouts[name];
   if (!layout) return;
   const slots = slot === 'both' ? ['h', 'v'] : [slot];
@@ -1125,13 +1145,14 @@ async function recallLayoutToSlot(name, slot) {
   await pollActive();
 }
 
-function deleteLayoutCard(name) {
+async function deleteLayoutCard(name) {
   if (!confirm(`Delete layout "${name}"?`)) return;
-  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
-  delete layouts[name];
-  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
-  renderGrid();
-  setStatus(`Layout "${name}" deleted.`, true);
+  try {
+    await fetch(`${WORKER}/layouts/${encodeURIComponent(name)}`, { method: 'DELETE', headers: { 'X-API-Key': apiKey() } });
+    delete layouts[name];
+    renderGrid();
+    setStatus(`Layout "${name}" deleted.`, true);
+  } catch(e) { setStatus('Error deleting layout: ' + e.message, false); }
 }
 
 
