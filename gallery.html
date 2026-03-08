@@ -144,6 +144,7 @@ a,button{cursor:pointer}
         <option value="contain">Fit (show all)</option>
         <option value="cover">Fill (crop to fit)</option>
       </select>
+      <button class="btn btn-gray btn-sm" onclick="centerSlot('h')" title="Reset position to center">⊕</button>
       <button class="btn btn-red btn-sm" onclick="clearSlot('h')">Clear</button>
     </div>
   </div>
@@ -162,6 +163,7 @@ a,button{cursor:pointer}
         <option value="contain">Fit (show all)</option>
         <option value="cover">Fill (crop to fit)</option>
       </select>
+      <button class="btn btn-gray btn-sm" onclick="centerSlot('v')" title="Reset position to center">⊕</button>
       <button class="btn btn-red btn-sm" onclick="clearSlot('v')">Clear</button>
     </div>
   </div>
@@ -558,6 +560,17 @@ async function selectSlot(slot, key, name) {
     setStatus(`Set ${slot.toUpperCase()}: ${name}`, true);
     await pollActive();
   } catch(e) { setStatus('Error: ' + e.message, false); }
+}
+
+async function centerSlot(slot) {
+  const state = slot === 'h' ? activeH : activeV;
+  if (!state) return;
+  state.x = 50; state.y = 50;
+  const wrap = document.getElementById(`preview-${slot}`);
+  const img = wrap.querySelector('img.preview-img');
+  if (img) applyImgStyle(img, state, wrap);
+  await saveSlotState(slot);
+  setStatus(`Slot ${slot.toUpperCase()} centered.`, true);
 }
 
 async function clearSlot(slot) {
