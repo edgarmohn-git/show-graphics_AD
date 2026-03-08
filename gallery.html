@@ -50,8 +50,7 @@ a,button{cursor:pointer}
 /* ── Grid ── */
 .grid-wrap{padding:12px 16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.card{position:relative;background:#1a1a1a;border-radius:7px;overflow:hidden;border:2px solid transparent;transition:border-color .2s,transform .18s;transform-origin:center top;z-index:1}
-.card:hover{transform:scale(1.85);z-index:30}
+.card{position:relative;background:#1a1a1a;border-radius:7px;overflow:hidden;border:2px solid transparent;transition:border-color .2s;z-index:1}
 /* ── Thumb zoom lightbox ── */
 #thumb-zoom{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:12px}
 #thumb-zoom.open{display:flex}
@@ -73,7 +72,8 @@ a,button{cursor:pointer}
 .grid-section:first-child{border-top:none;margin-top:0;padding-top:4px}
 .grid-section-empty{grid-column:1/-1;font-size:.78rem;color:#444;padding:10px 4px;font-style:italic}
 .card-cb{position:absolute;top:7px;left:7px;z-index:3;width:18px;height:18px;cursor:pointer;accent-color:#f59e0b;display:none}
-.card-thumb{width:100%;height:140px;object-fit:contain;display:block;background:#c8c8c8}
+.card-thumb{width:100%;height:140px;object-fit:contain;display:block;background:#3a3a3a}
+.card-thumb.thumb-portrait{height:220px}
 .card-body{padding:8px}
 .card-name{font-size:.83rem;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card-tags{font-size:.72rem;color:#666;margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -787,7 +787,7 @@ function renderGrid() {
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isLayoutPicked ? 'checked' : ''} style="display:${selectMode?'block':'none'}" onchange="toggleLayoutSelect('${safeName}',this)">
         <div class="layout-flag">LAYOUT</div>
-        <img class="card-thumb" src="${layout.thumb||''}">
+        <img class="card-thumb${layout.v && !layout.h ? ' thumb-portrait' : ''}" src="${layout.thumb||''}">
         <div class="card-body">
           <div class="card-name">${name}</div>
           <div class="card-tags">${subtitle||'&nbsp;'}</div>
@@ -1249,11 +1249,19 @@ function initBigDrag(wrap, slot, key, name) {
 // ── Layouts ───────────────────────────────────────
 
 async function captureLayoutThumb(slot) {
-  const W = 480, TH = 120;
+  // Canvas dimensions depend on slot type:
+  // H-only: wide 16:9 canvas  (480×270)
+  // V-only: tall 9:16 canvas  (160×284) — fills card height, narrow sides show dark bg
+  // Both:   wide canvas with H left + V right (480×120)
+  let W, TH;
+  if (slot === 'h')      { W = 480; TH = 270; }
+  else if (slot === 'v') { W = 160; TH = 284; }
+  else                   { W = 480; TH = 120; }
+
   const c = document.createElement('canvas');
   c.width = W; c.height = TH;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, TH);
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(0, 0, W, TH);
 
   const loadImg = url => new Promise(resolve => {
     const i = new Image(); i.crossOrigin = 'anonymous';
@@ -1261,43 +1269,39 @@ async function captureLayoutThumb(slot) {
     i.src = url;
   });
 
-  const drawSlot = async (state, boxX, boxW, label, labelColor) => {
+  const drawSlot = async (state, boxX, boxY, boxW, boxH, label, labelColor) => {
     if (state?.key) {
       const img = await loadImg(`${WORKER}/img/${encodeURIComponent(state.key)}`);
       if (img) {
         ctx.save();
-        ctx.beginPath(); ctx.rect(boxX, 0, boxW, TH); ctx.clip();
-        const scale = Math.min(boxW / img.naturalWidth, TH / img.naturalHeight);
+        ctx.beginPath(); ctx.rect(boxX, boxY, boxW, boxH); ctx.clip();
+        const scale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
         const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-        ctx.drawImage(img, boxX + (boxW - dw) / 2, (TH - dh) / 2, dw, dh);
+        ctx.drawImage(img, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
         ctx.restore();
       }
       ctx.fillStyle = labelColor;
-      ctx.fillRect(boxX, TH - 16, boxW, 16);
+      ctx.fillRect(boxX, boxY + boxH - 16, boxW, 16);
       ctx.fillStyle = '#fff'; ctx.font = '10px system-ui';
-      ctx.fillText(label + ': ' + (state.name || '—'), boxX + 4, TH - 4);
+      ctx.fillText(label + ': ' + (state.name || '—'), boxX + 4, boxY + boxH - 4);
     } else {
-      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(boxX, 0, boxW, TH);
-      ctx.fillStyle = '#444'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(label + ' empty', boxX + boxW / 2, TH / 2 + 4); ctx.textAlign = 'left';
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.fillStyle = '#555'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(label + ' empty', boxX + boxW / 2, boxY + boxH / 2 + 4); ctx.textAlign = 'left';
     }
   };
 
-  const hW = Math.round(TH * 16 / 9); // ~213px
-  const vW = Math.round(TH * 9 / 16); // ~67px
-
   if (slot === 'h') {
-    // H fills the full thumbnail width
-    await drawSlot(activeH, 0, W, 'H', 'rgba(37,99,235,0.7)');
+    await drawSlot(activeH, 0, 0, W, TH, 'H', 'rgba(37,99,235,0.7)');
   } else if (slot === 'v') {
-    // V centered in the thumbnail
-    const vX = Math.round((W - vW) / 2);
-    await drawSlot(activeV, vX, vW, 'V', 'rgba(124,58,237,0.7)');
+    await drawSlot(activeV, 0, 0, W, TH, 'V', 'rgba(124,58,237,0.7)');
   } else {
-    // Both: H left, gap, V right
-    await drawSlot(activeH, 0, hW, 'H', 'rgba(37,99,235,0.7)');
+    // Both: H left (16:9 of height), gap, V right (9:16 of height)
+    const hW = Math.round(TH * 16 / 9);
+    const vW = Math.round(TH * 9 / 16);
+    await drawSlot(activeH, 0, 0, hW, TH, 'H', 'rgba(37,99,235,0.7)');
     ctx.fillStyle = '#0d0d0d'; ctx.fillRect(hW, 0, 8, TH);
-    await drawSlot(activeV, hW + 8, vW, 'V', 'rgba(124,58,237,0.7)');
+    await drawSlot(activeV, hW + 8, 0, vW, TH, 'V', 'rgba(124,58,237,0.7)');
   }
 
   return c.toDataURL('image/jpeg', 0.8);
@@ -1385,15 +1389,6 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Smart hover origin — prevents cards near viewport edges from scaling off-screen
-document.getElementById('grid').addEventListener('mouseover', e => {
-  const card = e.target.closest('.card');
-  if (!card) return;
-  const r = card.getBoundingClientRect();
-  const vw = window.innerWidth;
-  const xO = r.left < vw * 0.2 ? 'left' : r.right > vw * 0.8 ? 'right' : 'center';
-  card.style.transformOrigin = `${xO} top`;
-});
 </script>
 
 <!-- Thumb zoom lightbox -->
