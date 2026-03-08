@@ -1213,13 +1213,12 @@ function initBigDrag(wrap, slot, key, name) {
 
 // ── Layouts ───────────────────────────────────────
 
-async function captureLayoutThumb() {
-  const W = 480, H = 120;
-  // H canvas: 320×180 (16:9), V canvas: 67×120 (9:16), with 8px gap
+async function captureLayoutThumb(slot) {
+  const W = 480, TH = 120;
   const c = document.createElement('canvas');
-  c.width = W; c.height = H;
+  c.width = W; c.height = TH;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, TH);
 
   const loadImg = url => new Promise(resolve => {
     const i = new Image(); i.crossOrigin = 'anonymous';
@@ -1227,53 +1226,43 @@ async function captureLayoutThumb() {
     i.src = url;
   });
 
-  // H slot: left portion, 16:9 aspect → width = 120*(16/9) ≈ 213px
-  const hW = Math.round(H * 16/9), vW = Math.round(H * 9/16);
-
-  if (activeH?.key) {
-    const img = await loadImg(`${WORKER}/img/${encodeURIComponent(activeH.key)}`);
-    if (img) {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(0, 0, hW, H); ctx.clip();
-      // draw cover-style: fill the box
-      const scale = Math.max(hW/img.naturalWidth, H/img.naturalHeight);
-      const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
-      ctx.drawImage(img, (hW-dw)/2, (H-dh)/2, dw, dh);
-      ctx.restore();
+  const drawSlot = async (state, boxX, boxW, label, labelColor) => {
+    if (state?.key) {
+      const img = await loadImg(`${WORKER}/img/${encodeURIComponent(state.key)}`);
+      if (img) {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(boxX, 0, boxW, TH); ctx.clip();
+        const scale = Math.max(boxW / img.naturalWidth, TH / img.naturalHeight);
+        const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+        ctx.drawImage(img, boxX + (boxW - dw) / 2, (TH - dh) / 2, dw, dh);
+        ctx.restore();
+      }
+      ctx.fillStyle = labelColor;
+      ctx.fillRect(boxX, TH - 16, boxW, 16);
+      ctx.fillStyle = '#fff'; ctx.font = '10px system-ui';
+      ctx.fillText(label + ': ' + (state.name || '—'), boxX + 4, TH - 4);
+    } else {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(boxX, 0, boxW, TH);
+      ctx.fillStyle = '#444'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(label + ' empty', boxX + boxW / 2, TH / 2 + 4); ctx.textAlign = 'left';
     }
-    ctx.fillStyle = 'rgba(37,99,235,0.7)';
-    ctx.fillRect(0, H-16, hW, 16);
-    ctx.fillStyle = '#fff'; ctx.font = '10px system-ui';
-    ctx.fillText('H: ' + (activeH.name || '—'), 4, H-4);
-  } else {
-    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0, 0, hW, H);
-    ctx.fillStyle = '#444'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('H empty', hW/2, H/2+4); ctx.textAlign = 'left';
-  }
+  };
 
-  // gap
-  ctx.fillStyle = '#0d0d0d'; ctx.fillRect(hW, 0, 8, H);
+  const hW = Math.round(TH * 16 / 9); // ~213px
+  const vW = Math.round(TH * 9 / 16); // ~67px
 
-  // V slot: right portion, 9:16 aspect
-  const vX = hW + 8;
-  if (activeV?.key) {
-    const img = await loadImg(`${WORKER}/img/${encodeURIComponent(activeV.key)}`);
-    if (img) {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(vX, 0, vW, H); ctx.clip();
-      const scale = Math.max(vW/img.naturalWidth, H/img.naturalHeight);
-      const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
-      ctx.drawImage(img, vX+(vW-dw)/2, (H-dh)/2, dw, dh);
-      ctx.restore();
-    }
-    ctx.fillStyle = 'rgba(124,58,237,0.7)';
-    ctx.fillRect(vX, H-16, vW, 16);
-    ctx.fillStyle = '#fff'; ctx.font = '10px system-ui';
-    ctx.fillText('V: ' + (activeV.name || '—'), vX+4, H-4);
+  if (slot === 'h') {
+    // H fills the full thumbnail width
+    await drawSlot(activeH, 0, W, 'H', 'rgba(37,99,235,0.7)');
+  } else if (slot === 'v') {
+    // V centered in the thumbnail
+    const vX = Math.round((W - vW) / 2);
+    await drawSlot(activeV, vX, vW, 'V', 'rgba(124,58,237,0.7)');
   } else {
-    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(vX, 0, vW, H);
-    ctx.fillStyle = '#444'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('V empty', vX+vW/2, H/2+4); ctx.textAlign = 'left';
+    // Both: H left, gap, V right
+    await drawSlot(activeH, 0, hW, 'H', 'rgba(37,99,235,0.7)');
+    ctx.fillStyle = '#0d0d0d'; ctx.fillRect(hW, 0, 8, TH);
+    await drawSlot(activeV, hW + 8, vW, 'V', 'rgba(124,58,237,0.7)');
   }
 
   return c.toDataURL('image/jpeg', 0.8);
@@ -1285,7 +1274,7 @@ async function saveLayout(slot = 'both') {
   const entry = layouts[name] || {};
   if (slot === 'h' || slot === 'both') entry.h = activeH ? { ...activeH } : null;
   if (slot === 'v' || slot === 'both') entry.v = activeV ? { ...activeV } : null;
-  entry.thumb = await captureLayoutThumb();
+  entry.thumb = await captureLayoutThumb(slot);
   try {
     await fetch(`${WORKER}/layouts/${encodeURIComponent(name)}`, {
       method: 'PUT',
