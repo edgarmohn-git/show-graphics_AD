@@ -135,8 +135,8 @@ a,button{cursor:pointer}
     <div class="slot-name" id="name-h">—</div>
     <div class="slot-controls">
       <label>Scale</label>
-      <input type="range" id="scale-h" min="10" max="200" value="100" oninput="onScaleChange('h')">
-      <span id="scale-h-val">100%</span>
+      <input type="range" id="scale-h" min="10" max="200" value="100" step="1" oninput="onScaleChange('h')">
+      <input type="number" id="scale-h-val" min="10" max="200" value="100" title="Double-click to reset to 100%" oninput="syncScaleNum('h')" ondblclick="resetScale('h')" style="width:52px;background:#222;border:1px solid #3a3a3a;color:#fff;border-radius:4px;padding:2px 5px;font-size:.78rem">
       <label>Fit</label>
       <select id="fit-h" onchange="onFitChange('h')">
         <option value="contain">Fit (show all)</option>
@@ -153,8 +153,8 @@ a,button{cursor:pointer}
     <div class="slot-name" id="name-v">—</div>
     <div class="slot-controls">
       <label>Scale</label>
-      <input type="range" id="scale-v" min="10" max="200" value="100" oninput="onScaleChange('v')">
-      <span id="scale-v-val">100%</span>
+      <input type="range" id="scale-v" min="10" max="200" value="100" step="1" oninput="onScaleChange('v')">
+      <input type="number" id="scale-v-val" min="10" max="200" value="100" title="Double-click to reset to 100%" oninput="syncScaleNum('v')" ondblclick="resetScale('v')" style="width:52px;background:#222;border:1px solid #3a3a3a;color:#fff;border-radius:4px;padding:2px 5px;font-size:.78rem">
       <label>Fit</label>
       <select id="fit-v" onchange="onFitChange('v')">
         <option value="contain">Fit (show all)</option>
@@ -219,6 +219,9 @@ a,button{cursor:pointer}
               <label>Tolerance:</label>
               <input type="range" id="ko-tolerance" min="0" max="120" value="30" oninput="applyKnockout()">
               <span id="ko-tval">30</span>
+            </div>
+            <div class="ko-row">
+              <label><input type="checkbox" id="ko-soft" style="margin-right:4px">Soft edges</label>
             </div>
             <div class="ko-row">
               <button class="btn btn-gray btn-sm" onclick="resetKnockout()">Reset KO</button>
@@ -337,8 +340,8 @@ async function pollActive() {
     if (vChanged) updatePreview('v');
     document.getElementById('name-h').textContent = rh?.name || (rh ? rh.key : '—');
     document.getElementById('name-v').textContent = rv?.name || (rv ? rv.key : '—');
-    if (rh) { document.getElementById('scale-h').value = rh.scale; document.getElementById('scale-h-val').textContent = rh.scale + '%'; document.getElementById('fit-h').value = rh.fit; }
-    if (rv) { document.getElementById('scale-v').value = rv.scale; document.getElementById('scale-v-val').textContent = rv.scale + '%'; document.getElementById('fit-v').value = rv.fit; }
+    if (rh) { document.getElementById('scale-h').value = rh.scale; document.getElementById('scale-h-val').value = rh.scale; document.getElementById('fit-h').value = rh.fit; }
+    if (rv) { document.getElementById('scale-v').value = rv.scale; document.getElementById('scale-v-val').value = rv.scale; document.getElementById('fit-v').value = rv.fit; }
     renderGrid();
   } catch(e) {}
 }
@@ -371,9 +374,34 @@ function applyImgStyle(img, state, wrap) {
   img.style.transform = `translate(-50%,-50%) scale(${s})`;
 }
 
+function syncScaleNum(slot) {
+  const val = Math.max(10, Math.min(200, parseInt(document.getElementById(`scale-${slot}-val`).value) || 100));
+  document.getElementById(`scale-${slot}-val`).value = val;
+  document.getElementById(`scale-${slot}`).value = val;
+  const state = slot === 'h' ? activeH : activeV;
+  if (!state) return;
+  state.scale = val;
+  const wrap = document.getElementById(`preview-${slot}`);
+  const img = wrap.querySelector('img.preview-img');
+  if (img) applyImgStyle(img, state, wrap);
+  debounceSlotUpdate(slot);
+}
+
+function resetScale(slot) {
+  document.getElementById(`scale-${slot}`).value = 100;
+  document.getElementById(`scale-${slot}-val`).value = 100;
+  const state = slot === 'h' ? activeH : activeV;
+  if (!state) return;
+  state.scale = 100;
+  const wrap = document.getElementById(`preview-${slot}`);
+  const img = wrap.querySelector('img.preview-img');
+  if (img) applyImgStyle(img, state, wrap);
+  debounceSlotUpdate(slot);
+}
+
 function onScaleChange(slot) {
   const val = document.getElementById(`scale-${slot}`).value;
-  document.getElementById(`scale-${slot}-val`).textContent = val + '%';
+  document.getElementById(`scale-${slot}-val`).value = val;
   const state = slot === 'h' ? activeH : activeV;
   if (!state) return;
   state.scale = parseInt(val);
@@ -425,8 +453,8 @@ function initDrag(wrap, slot) {
     const dy = ((e.clientY - dragState.startY) / dragState.rect.height) * 100;
     const state = slot === 'h' ? activeH : activeV;
     if (!state) return;
-    state.x = Math.max(0, Math.min(100, dragState.ox + dx));
-    state.y = Math.max(0, Math.min(100, dragState.oy + dy));
+    state.x = dragState.ox + dx;
+    state.y = dragState.oy + dy;
     const img = wrap.querySelector('img.preview-img');
     if (img) applyImgStyle(img, state, wrap);
   });
@@ -672,9 +700,17 @@ function applyKnockout() {
   const ctx = tmp.getContext('2d');
   const id = ctx.getImageData(0, 0, tmp.width, tmp.height);
   const d = id.data;
+  const soft = document.getElementById('ko-soft')?.checked;
   for (let i = 0; i < d.length; i += 4) {
     const dist = Math.sqrt((d[i]-tr)**2 + (d[i+1]-tg)**2 + (d[i+2]-tb)**2);
-    if (dist < tol) d[i+3] = 0;
+    if (dist < tol) {
+      if (soft) {
+        const t = dist / tol; // 0=center, 1=edge
+        d[i+3] = Math.round(d[i+3] * t * t * (3 - 2 * t)); // smoothstep
+      } else {
+        d[i+3] = 0;
+      }
+    }
   }
   ctx.putImageData(id, 0, 0);
   c.width = tmp.width; c.height = tmp.height;
@@ -741,8 +777,8 @@ function initBigDrag(wrap, slot, key, name) {
     if (!dragState || dragState.slot !== slot) return;
     const dx = ((e.clientX - dragState.startX) / dragState.rect.width) * 100;
     const dy = ((e.clientY - dragState.startY) / dragState.rect.height) * 100;
-    const x = Math.max(0, Math.min(100, dragState.ox + dx));
-    const y = Math.max(0, Math.min(100, dragState.oy + dy));
+    const x = dragState.ox + dx;
+    const y = dragState.oy + dy;
     const img = document.getElementById(`big-${slot}-img`);
     const fakeState = { ...(slot==='h'?activeH:activeV)||{scale:80,fit:'contain'}, x, y };
     applyImgStyle(img, fakeState, wrap);
