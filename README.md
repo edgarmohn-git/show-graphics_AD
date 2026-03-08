@@ -203,10 +203,14 @@ npx wrangler tail                               # Live Worker logs
 - ✅ Drag-to-place, scale, fit modes — gallery preview = display page (pixel-accurate)
 - ✅ Crop, trim sides, color knock-out (hard + soft edges)
 - ✅ Layout save/recall as grid cards — stored in Cloudflare KV, shared across browsers
+- ✅ Layout thumbnails: show actual position/scale/fit; H-only/V-only/Both correctly proportioned
+- ✅ Recall buttons greyed out for slots not included in a layout
 - ✅ Multi-select delete (images + layouts), rename layouts
 - ✅ Preview grid overlay (2×2 to 100×100, snap-to-grid, show/hide toggle, default 20×20)
 - ✅ Grid preferences persistent across page reloads
 - ✅ Auto-save slot state across page reloads
+- ✅ Click thumbnail to preview (all card types); select mode: click thumbnail = toggle select
 - ✅ Security: .gitignore, CORS origin enforced, API key never in code
+- ⬜ Background reference images (vMix layout screenshots as positioning guide) — planned
 - ⬜ Bitfocus Companion webhook (optional)
 - ⬜ remove.bg API integration (optional)
