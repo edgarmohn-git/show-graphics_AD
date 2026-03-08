@@ -32,7 +32,9 @@ function checkAuth(request, env) {
 
 export default {
   async fetch(request, env) {
-    const origin = request.headers.get('Origin') || '*';
+    const requestOrigin = request.headers.get('Origin');
+    const allowed = env.ALLOWED_ORIGIN || 'https://edgarmohn-git.github.io';
+    const origin = (requestOrigin === allowed) ? requestOrigin : allowed;
     const url = new URL(request.url);
     const path = url.pathname;
 
