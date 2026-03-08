@@ -210,6 +210,7 @@ npx wrangler tail                               # Live Worker logs
 - ✅ Grid preferences persistent across page reloads
 - ✅ Auto-save slot state across page reloads
 - ✅ Click thumbnail to preview (all card types); select mode: click thumbnail = toggle select
+- ✅ KV read caching: Worker serves `/active` from Cache API — ~99% fewer KV reads; invalidated on every state change
 - ✅ Security: .gitignore, CORS origin enforced, API key never in code
 - ⬜ Background reference images (vMix layout screenshots as positioning guide) — planned
 - ⬜ Bitfocus Companion webhook (optional)
