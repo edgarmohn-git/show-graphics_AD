@@ -63,9 +63,9 @@ a,button{cursor:pointer}
 .card.sel-hv{border-color:#0d9488}
 .card.pick-selected{outline:3px solid #f59e0b;outline-offset:-2px;border-color:#f59e0b}
 .card.layout-card{border-color:#78350f}
-.layout-flag{position:absolute;top:7px;right:7px;background:#78350f;color:#fcd34d;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;z-index:3}
+.layout-flag{background:#78350f;color:#fcd34d;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;align-self:center;margin-left:auto}
 .card.edited-card{border-color:#134e4a}
-.edited-flag{position:absolute;top:7px;right:7px;background:#134e4a;color:#5eead4;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;z-index:3}
+.edited-flag{background:#134e4a;color:#5eead4;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;align-self:center;margin-left:auto}
 .card.dragging{opacity:0.4}
 .card.drag-over{border-color:#2563eb !important;box-shadow:0 0 0 2px rgba(37,99,235,0.25)}
 .grid-section{grid-column:1/-1;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.1em;padding:12px 4px 6px;border-top:1px solid #2a2a2a;margin-top:4px}
@@ -786,8 +786,7 @@ function renderGrid() {
       const isLayoutPicked = selectedLayouts.has(name);
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isLayoutPicked ? 'checked' : ''} style="display:${selectMode?'block':'none'}" onchange="toggleLayoutSelect('${safeName}',this)">
-        <div class="layout-flag">LAYOUT</div>
-        <img class="card-thumb" src="${layout.thumb||''}" onclick="openLayoutPreview('${safeName}')">
+        <img class="card-thumb" src="${layout.thumb||''}" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openLayoutPreview('${safeName}')}">
         <div class="card-body">
           <div class="card-name">${name}</div>
           <div class="card-actions">
@@ -797,6 +796,7 @@ function renderGrid() {
             <button class="btn btn-gray btn-sm" onclick="openLayoutPreview('${safeName}')" title="Preview layout">🔍</button>
             <button class="btn btn-gray btn-sm" onclick="renameLayout('${safeName}')" title="Rename layout">✏️</button>
             <button class="btn btn-red btn-sm" onclick="deleteLayoutCard('${safeName}')">🗑</button>
+            <span class="layout-flag">LAYOUT</span>
           </div>
         </div>`;
       grid.appendChild(card);
@@ -825,8 +825,7 @@ function renderGrid() {
       card.className = cls;
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
-        <div class="edited-flag">EDITED</div>
-        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">
+        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">
         <div class="card-body">
           <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
           <div class="card-tags">${(img.tags||[]).filter(t=>t!=='edited').join(', ')||'&nbsp;'}</div>
@@ -836,6 +835,7 @@ function renderGrid() {
             <button class="btn btn-gray btn-sm" onclick="openEdit('${img.key}','${img.name.replace(/'/g,"\\'")}')">✏️</button>
             <button class="btn btn-gray btn-sm" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">🔍</button>
             <button class="btn btn-red btn-sm" onclick="deleteImage('${img.key}')">🗑</button>
+            <span class="edited-flag">EDITED</span>
           </div>
         </div>`;
       grid.appendChild(card);
@@ -864,7 +864,7 @@ function renderGrid() {
     card.className = cls;
     card.innerHTML = `
       <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
-      <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">
+      <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')}">
       <div class="card-body">
         <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
         <div class="card-tags">${(img.tags||[]).join(', ')||'&nbsp;'}</div>
@@ -1294,12 +1294,11 @@ async function captureLayoutThumb(slot) {
     const vX = Math.round((TW - vW) / 2);
     await drawSlot(activeV, vX, 0, vW, TH);
   } else {
-    // Both: H on left, V on right, gap between
-    const gap = 8;
+    // Both: H on left, V on right — wide gap (same #3a3a3a as outer bg = visibly separate)
+    const gap = 20;
     const vW = Math.round(TH * 9 / 16);      // ~152px
-    const hW = TW - gap - vW;                 // ~320px
+    const hW = TW - gap - vW;                 // ~308px
     await drawSlot(activeH, 0, 0, hW, TH);
-    ctx.fillStyle = '#0d0d0d'; ctx.fillRect(hW, 0, gap, TH);
     await drawSlot(activeV, hW + gap, 0, vW, TH);
   }
 
