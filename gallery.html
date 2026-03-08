@@ -72,8 +72,8 @@ a,button{cursor:pointer}
 .grid-section:first-child{border-top:none;margin-top:0;padding-top:4px}
 .grid-section-empty{grid-column:1/-1;font-size:.78rem;color:#444;padding:10px 4px;font-style:italic}
 .card-cb{position:absolute;top:7px;left:7px;z-index:3;width:18px;height:18px;cursor:pointer;accent-color:#f59e0b;display:none}
-.card-thumb{width:100%;height:140px;object-fit:contain;display:block;background:#3a3a3a}
-.card-thumb.thumb-portrait{height:220px}
+.card-thumb{width:100%;height:140px;object-fit:contain;display:block;background:#3a3a3a;cursor:pointer}
+.btn:disabled{opacity:0.3;cursor:default;pointer-events:none}
 .card-body{padding:8px}
 .card-name{font-size:.83rem;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card-tags{font-size:.72rem;color:#666;margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -787,14 +787,13 @@ function renderGrid() {
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isLayoutPicked ? 'checked' : ''} style="display:${selectMode?'block':'none'}" onchange="toggleLayoutSelect('${safeName}',this)">
         <div class="layout-flag">LAYOUT</div>
-        <img class="card-thumb${layout.v && !layout.h ? ' thumb-portrait' : ''}" src="${layout.thumb||''}">
+        <img class="card-thumb" src="${layout.thumb||''}" onclick="openLayoutPreview('${safeName}')">
         <div class="card-body">
           <div class="card-name">${name}</div>
-          <div class="card-tags">${subtitle||'&nbsp;'}</div>
           <div class="card-actions">
-            <button class="btn btn-blue btn-sm" onclick="recallLayoutToSlot('${safeName}','h')">↩ H</button>
-            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="recallLayoutToSlot('${safeName}','v')">↩ V</button>
-            <button class="btn btn-green btn-sm" onclick="recallLayoutToSlot('${safeName}','both')">↩ Both</button>
+            <button class="btn btn-blue btn-sm" ${!layout.h ? 'disabled title="No H saved in this layout"' : `onclick="recallLayoutToSlot('${safeName}','h')"`}>↩ H</button>
+            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" ${!layout.v ? 'disabled title="No V saved in this layout"' : `onclick="recallLayoutToSlot('${safeName}','v')"`}>↩ V</button>
+            <button class="btn btn-green btn-sm" ${!(layout.h && layout.v) ? 'disabled title="Needs both H and V saved"' : `onclick="recallLayoutToSlot('${safeName}','both')"`}>↩ Both</button>
             <button class="btn btn-gray btn-sm" onclick="openLayoutPreview('${safeName}')" title="Preview layout">🔍</button>
             <button class="btn btn-gray btn-sm" onclick="renameLayout('${safeName}')" title="Rename layout">✏️</button>
             <button class="btn btn-red btn-sm" onclick="deleteLayoutCard('${safeName}')">🗑</button>
@@ -827,7 +826,7 @@ function renderGrid() {
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
         <div class="edited-flag">EDITED</div>
-        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy">
+        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">
         <div class="card-body">
           <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
           <div class="card-tags">${(img.tags||[]).filter(t=>t!=='edited').join(', ')||'&nbsp;'}</div>
@@ -865,7 +864,7 @@ function renderGrid() {
     card.className = cls;
     card.innerHTML = `
       <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
-      <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy">
+      <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">
       <div class="card-body">
         <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
         <div class="card-tags">${(img.tags||[]).join(', ')||'&nbsp;'}</div>
@@ -1249,19 +1248,14 @@ function initBigDrag(wrap, slot, key, name) {
 // ── Layouts ───────────────────────────────────────
 
 async function captureLayoutThumb(slot) {
-  // Canvas dimensions depend on slot type:
-  // H-only: wide 16:9 canvas  (480×270)
-  // V-only: tall 9:16 canvas  (160×284) — fills card height, narrow sides show dark bg
-  // Both:   wide canvas with H left + V right (480×120)
-  let W, TH;
-  if (slot === 'h')      { W = 480; TH = 270; }
-  else if (slot === 'v') { W = 160; TH = 284; }
-  else                   { W = 480; TH = 120; }
-
+  // Always a 480×270 (16:9) thumbnail canvas.
+  // Dark grey (#3a3a3a) fills the outer area; actual canvas box is #111.
+  // Image is drawn at its stored position/scale/fit — matches what magnify shows.
+  const TW = 480, TH = 270;
   const c = document.createElement('canvas');
-  c.width = W; c.height = TH;
+  c.width = TW; c.height = TH;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(0, 0, W, TH);
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(0, 0, TW, TH);
 
   const loadImg = url => new Promise(resolve => {
     const i = new Image(); i.crossOrigin = 'anonymous';
@@ -1269,39 +1263,44 @@ async function captureLayoutThumb(slot) {
     i.src = url;
   });
 
-  const drawSlot = async (state, boxX, boxY, boxW, boxH, label, labelColor) => {
-    if (state?.key) {
-      const img = await loadImg(`${WORKER}/img/${encodeURIComponent(state.key)}`);
-      if (img) {
-        ctx.save();
-        ctx.beginPath(); ctx.rect(boxX, boxY, boxW, boxH); ctx.clip();
-        const scale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
-        const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-        ctx.drawImage(img, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
-        ctx.restore();
-      }
-      ctx.fillStyle = labelColor;
-      ctx.fillRect(boxX, boxY + boxH - 16, boxW, 16);
-      ctx.fillStyle = '#fff'; ctx.font = '10px system-ui';
-      ctx.fillText(label + ': ' + (state.name || '—'), boxX + 4, boxY + boxH - 4);
-    } else {
-      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(boxX, boxY, boxW, boxH);
-      ctx.fillStyle = '#555'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(label + ' empty', boxX + boxW / 2, boxY + boxH / 2 + 4); ctx.textAlign = 'left';
-    }
+  // Draw one slot's canvas box (with image at actual stored position/scale/fit)
+  const drawSlot = async (state, bx, by, bw, bh) => {
+    ctx.fillStyle = '#111';
+    ctx.fillRect(bx, by, bw, bh);
+    if (!state?.key) return;
+    const img = await loadImg(`${WORKER}/img/${encodeURIComponent(state.key)}`);
+    if (!img) return;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
+    const sc = (state.scale || 100) / 100;
+    const fitMode = state.fit || 'contain';
+    const base = fitMode === 'cover'
+      ? Math.max(bw / img.naturalWidth, bh / img.naturalHeight)
+      : Math.min(bw / img.naturalWidth, bh / img.naturalHeight);
+    const dw = img.naturalWidth * base * sc;
+    const dh = img.naturalHeight * base * sc;
+    const cx = bx + bw * ((state.x ?? 50) / 100);
+    const cy = by + bh * ((state.y ?? 50) / 100);
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    ctx.restore();
   };
 
   if (slot === 'h') {
-    await drawSlot(activeH, 0, 0, W, TH, 'H', 'rgba(37,99,235,0.7)');
+    // H canvas fills the full 16:9 thumbnail
+    await drawSlot(activeH, 0, 0, TW, TH);
   } else if (slot === 'v') {
-    await drawSlot(activeV, 0, 0, W, TH, 'V', 'rgba(124,58,237,0.7)');
-  } else {
-    // Both: H left (16:9 of height), gap, V right (9:16 of height)
-    const hW = Math.round(TH * 16 / 9);
+    // V canvas (9:16) centered, dark grey pillarbox sides
     const vW = Math.round(TH * 9 / 16);
-    await drawSlot(activeH, 0, 0, hW, TH, 'H', 'rgba(37,99,235,0.7)');
-    ctx.fillStyle = '#0d0d0d'; ctx.fillRect(hW, 0, 8, TH);
-    await drawSlot(activeV, hW + 8, 0, vW, TH, 'V', 'rgba(124,58,237,0.7)');
+    const vX = Math.round((TW - vW) / 2);
+    await drawSlot(activeV, vX, 0, vW, TH);
+  } else {
+    // Both: H on left, V on right, gap between
+    const gap = 8;
+    const vW = Math.round(TH * 9 / 16);      // ~152px
+    const hW = TW - gap - vW;                 // ~320px
+    await drawSlot(activeH, 0, 0, hW, TH);
+    ctx.fillStyle = '#0d0d0d'; ctx.fillRect(hW, 0, gap, TH);
+    await drawSlot(activeV, hW + gap, 0, vW, TH);
   }
 
   return c.toDataURL('image/jpeg', 0.8);
