@@ -57,6 +57,10 @@ a,button{cursor:pointer}
 .card.pick-selected{outline:3px solid #f59e0b;outline-offset:-2px;border-color:#f59e0b}
 .card.layout-card{border-color:#78350f}
 .layout-flag{position:absolute;top:7px;right:7px;background:#78350f;color:#fcd34d;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;z-index:3}
+.card.edited-card{border-color:#134e4a}
+.edited-flag{position:absolute;top:7px;right:7px;background:#134e4a;color:#5eead4;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;z-index:3}
+.card.dragging{opacity:0.4}
+.card.drag-over{border-color:#2563eb !important;box-shadow:0 0 0 2px rgba(37,99,235,0.25)}
 .grid-section{grid-column:1/-1;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.1em;padding:12px 4px 6px;border-top:1px solid #2a2a2a;margin-top:4px}
 .grid-section:first-child{border-top:none;margin-top:0;padding-top:4px}
 .grid-section-empty{grid-column:1/-1;font-size:.78rem;color:#444;padding:10px 4px;font-style:italic}
@@ -308,6 +312,8 @@ let dragState = null;
 let selectMode = false;
 let selectedKeys = new Set();
 let selectedLayouts = new Set();
+let layoutOrder = []; // ordered array of layout names
+let drag = null;      // {type: 'layout'|'original'|'edited', idx: number}
 
 // ── Init ──────────────────────────────────────────
 window.onload = () => {
@@ -364,10 +370,15 @@ function apiKey() { return sessionStorage.getItem('sg_api_key') || ''; }
 
 async function loadLayouts() {
   try {
-    const r = await fetch(`${WORKER}/layouts`, { headers: { 'X-API-Key': apiKey() } });
-    if (r.ok) layouts = await r.json();
-    else layouts = {};
-  } catch(e) { layouts = {}; }
+    const [lr, or] = await Promise.all([
+      fetch(`${WORKER}/layouts`, { headers: { 'X-API-Key': apiKey() } }),
+      fetch(`${WORKER}/layout-order`, { headers: { 'X-API-Key': apiKey() } })
+    ]);
+    if (lr.ok) layouts = await lr.json(); else layouts = {};
+    if (or.ok) layoutOrder = await or.json(); else layoutOrder = [];
+  } catch(e) { layouts = {}; layoutOrder = []; }
+  Object.keys(layouts).forEach(n => { if (!layoutOrder.includes(n)) layoutOrder.push(n); });
+  layoutOrder = layoutOrder.filter(n => n in layouts);
   renderGrid();
 }
 
@@ -676,6 +687,67 @@ async function galleryUpload() {
   }
 }
 
+// ── Drag helpers ──────────────────────────────────
+function addDragHandlers(card, type, idx) {
+  card.draggable = true;
+  card.addEventListener('dragstart', e => {
+    drag = { type, idx };
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    drag = null;
+  });
+  card.addEventListener('dragover', e => {
+    if (!drag || drag.type !== type) return;
+    e.preventDefault();
+    card.classList.add('drag-over');
+  });
+  card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+  card.addEventListener('drop', e => {
+    e.preventDefault();
+    card.classList.remove('drag-over');
+    if (!drag || drag.type !== type || drag.idx === idx) return;
+    const from = drag.idx;
+    if (type === 'layout') {
+      const item = layoutOrder.splice(from, 1)[0];
+      layoutOrder.splice(idx, 0, item);
+      renderGrid();
+      saveLayoutOrder();
+    } else {
+      const origArr = images.filter(i => !(i.tags||[]).includes('edited'));
+      const editArr = images.filter(i => (i.tags||[]).includes('edited'));
+      const arr = type === 'original' ? origArr : editArr;
+      const item = arr.splice(from, 1)[0];
+      arr.splice(idx, 0, item);
+      images = type === 'original' ? [...arr, ...editArr] : [...origArr, ...arr];
+      renderGrid();
+      saveImageOrder();
+    }
+  });
+}
+
+async function saveImageOrder() {
+  try {
+    await fetch(`${WORKER}/image-order`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body: JSON.stringify(images.map(i => i.key))
+    });
+  } catch(e) {}
+}
+
+async function saveLayoutOrder() {
+  try {
+    await fetch(`${WORKER}/layout-order`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body: JSON.stringify(layoutOrder)
+    });
+  } catch(e) {}
+}
+
 // ── Grid ──────────────────────────────────────────
 function renderGrid() {
   const q = document.getElementById('search').value.toLowerCase();
@@ -683,7 +755,7 @@ function renderGrid() {
   grid.innerHTML = '';
 
   // ── Saved layout cards ──
-  const layoutNames = Object.keys(layouts).sort();
+  const layoutNames = layoutOrder.filter(n => n in layouts);
   {
     const lbl = document.createElement('div');
     lbl.className = 'grid-section';
@@ -720,27 +792,70 @@ function renderGrid() {
           </div>
         </div>`;
       grid.appendChild(card);
+      addDragHandlers(card, 'layout', layoutNames.indexOf(name));
     });
   }
 
-  // ── Image cards ──
-  const filtered = images.filter(img =>
+  // ── Split images ──
+  const allFiltered = images.filter(img =>
     !q || img.name.toLowerCase().includes(q) || (img.tags||[]).some(t=>t.toLowerCase().includes(q))
   );
+  const editedImgs = allFiltered.filter(img => (img.tags||[]).includes('edited'));
+  const originals  = allFiltered.filter(img => !(img.tags||[]).includes('edited'));
+
+  // ── Processed images (edited) — shown under Saved Layouts ──
+  if (editedImgs.length) {
+    const lbl = document.createElement('div');
+    lbl.className = 'grid-section';
+    lbl.textContent = 'Processed Images';
+    grid.appendChild(lbl);
+    editedImgs.forEach((img, idx) => {
+      const isH = activeH?.key === img.key, isV = activeV?.key === img.key;
+      const isPicked = selectedKeys.has(img.key);
+      const cls = ['card','edited-card', isPicked?'pick-selected':isH&&isV?'sel-hv':isH?'sel-h':isV?'sel-v':''].filter(Boolean).join(' ');
+      const card = document.createElement('div');
+      card.className = cls;
+      card.innerHTML = `
+        <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
+        <div class="edited-flag">EDITED</div>
+        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy">
+        <div class="card-body">
+          <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
+          <div class="card-tags">${(img.tags||[]).filter(t=>t!=='edited').join(', ')||'&nbsp;'}</div>
+          <div class="card-actions">
+            <button class="btn btn-blue btn-sm" onclick="selectSlot('h','${img.key}','${img.name.replace(/'/g,"\\'")}')">Set H</button>
+            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="selectSlot('v','${img.key}','${img.name.replace(/'/g,"\\'")}')">Set V</button>
+            <button class="btn btn-gray btn-sm" onclick="openEdit('${img.key}','${img.name.replace(/'/g,"\\'")}')">✏️</button>
+            <button class="btn btn-gray btn-sm" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">🔍</button>
+            <button class="btn btn-red btn-sm" onclick="deleteImage('${img.key}')">🗑</button>
+          </div>
+        </div>`;
+      grid.appendChild(card);
+      addDragHandlers(card, 'edited', idx);
+    });
+  }
+
+  // ── Image Library (originals only) ──
   {
     const lbl = document.createElement('div');
     lbl.className = 'grid-section';
     lbl.textContent = 'Image Library';
     grid.appendChild(lbl);
   }
-  filtered.forEach(img => {
+  if (!originals.length) {
+    const ph = document.createElement('div');
+    ph.className = 'grid-section-empty';
+    ph.textContent = apiKey() ? 'No images found.' : 'Enter API key and click Save Key to load the gallery.';
+    grid.appendChild(ph);
+  }
+  originals.forEach((img, idx) => {
     const isH = activeH?.key === img.key, isV = activeV?.key === img.key;
     const isPicked = selectedKeys.has(img.key);
-    const cls = isPicked ? 'pick-selected' : (isH && isV ? 'sel-hv' : isH ? 'sel-h' : isV ? 'sel-v' : '');
+    const cls = ['card', isPicked?'pick-selected':isH&&isV?'sel-hv':isH?'sel-h':isV?'sel-v':''].filter(Boolean).join(' ');
     const card = document.createElement('div');
-    card.className = `card ${cls}`;
+    card.className = cls;
     card.innerHTML = `
-      <input type="checkbox" class="card-cb" ${isPicked ? 'checked' : ''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
+      <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
       <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy">
       <div class="card-body">
         <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
@@ -754,10 +869,10 @@ function renderGrid() {
         </div>
       </div>`;
     grid.appendChild(card);
+    addDragHandlers(card, 'original', idx);
   });
-  if (!layoutNames.length && !filtered.length) {
-    const msg = apiKey() ? 'No images found.' : 'Enter API key and click Save Key to load the gallery.';
-    grid.innerHTML = `<p style="color:#555;padding:20px">${msg}</p>`;
+  if (!layoutNames.length && !editedImgs.length && !originals.length) {
+    grid.innerHTML = `<p style="color:#555;padding:20px">${apiKey() ? 'No images found.' : 'Enter API key and click Save Key to load the gallery.'}</p>`;
   }
 }
 
@@ -808,6 +923,9 @@ async function renameLayout(oldName) {
     await fetch(`${WORKER}/layouts/${encodeURIComponent(oldName)}`, { method: 'DELETE', headers: { 'X-API-Key': apiKey() } });
     layouts[n] = layouts[oldName];
     delete layouts[oldName];
+    const oi = layoutOrder.indexOf(oldName);
+    if (oi >= 0) layoutOrder.splice(oi, 1, n); else layoutOrder.push(n);
+    saveLayoutOrder();
     renderGrid();
     setStatus(`Layout renamed to "${n}".`, true);
   } catch(e) { setStatus('Error renaming layout: ' + e.message, false); }
@@ -1026,7 +1144,7 @@ async function saveEdited() {
   canvas.toBlob(async blob => {
     const orig = images.find(i => i.key === currentEditKey);
     const name = (orig?.name || 'image') + '_edited';
-    const tags = (orig?.tags || []).join(',');
+    const tags = ['edited', ...(orig?.tags || []).filter(t => t !== 'edited')].join(',');
     const fd = new FormData();
     fd.append('file', new File([blob], name + '.png', { type: 'image/png' }));
     fd.append('name', name); fd.append('tags', tags);
@@ -1175,6 +1293,7 @@ async function saveLayout(slot = 'both') {
       body: JSON.stringify(entry)
     });
     layouts[name] = entry;
+    if (!layoutOrder.includes(name)) { layoutOrder.push(name); saveLayoutOrder(); }
     renderGrid();
     const label = slot === 'both' ? 'H+V' : slot.toUpperCase();
     setStatus(`Layout "${name}" saved (${label}).`, true);
@@ -1206,6 +1325,8 @@ async function deleteLayoutCard(name) {
   try {
     await fetch(`${WORKER}/layouts/${encodeURIComponent(name)}`, { method: 'DELETE', headers: { 'X-API-Key': apiKey() } });
     delete layouts[name];
+    layoutOrder = layoutOrder.filter(n => n !== name);
+    saveLayoutOrder();
     renderGrid();
     setStatus(`Layout "${name}" deleted.`, true);
   } catch(e) { setStatus('Error deleting layout: ' + e.message, false); }

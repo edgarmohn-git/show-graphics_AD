@@ -111,6 +111,30 @@ export default {
       return json({ ok: true }, 200, origin);
     }
 
+    // --- Reorder images ---
+    if (request.method === 'PUT' && path === '/image-order') {
+      const keys = await request.json();
+      const index = (await env.KV.get('image_index', 'json')) || [];
+      const map = Object.fromEntries(index.map(i => [i.key, i]));
+      const reordered = keys.map(k => map[k]).filter(Boolean);
+      index.forEach(i => { if (!keys.includes(i.key)) reordered.push(i); });
+      await env.KV.put('image_index', JSON.stringify(reordered));
+      return json({ ok: true }, 200, origin);
+    }
+
+    // --- Get layout order ---
+    if (request.method === 'GET' && path === '/layout-order') {
+      const order = (await env.KV.get('layouts_order', 'json')) || [];
+      return json(order, 200, origin);
+    }
+
+    // --- Save layout order ---
+    if (request.method === 'PUT' && path === '/layout-order') {
+      const order = await request.json();
+      await env.KV.put('layouts_order', JSON.stringify(order));
+      return json({ ok: true }, 200, origin);
+    }
+
     // --- Upload image ---
     if (request.method === 'POST' && path === '/upload') {
       const formData = await request.formData();
