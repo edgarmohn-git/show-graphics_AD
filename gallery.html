@@ -285,7 +285,7 @@ a,button{cursor:pointer}
       <button class="btn btn-gray btn-sm" onclick="closeModal('preview-modal')">✕ Close</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:.78rem;color:#666;margin-bottom:12px">Drag image to reposition. Changes save automatically.</p>
+      <p id="preview-hint" style="font-size:.78rem;color:#666;margin-bottom:12px">Drag image to reposition. Changes save automatically.</p>
       <div class="preview-layout">
         <div class="preview-canvas-block" style="flex:2">
           <h4>H — 16:9</h4>
@@ -786,7 +786,7 @@ function renderGrid() {
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isLayoutPicked ? 'checked' : ''} style="display:${selectMode?'block':'none'}" onchange="toggleLayoutSelect('${safeName}',this)">
         <div class="layout-flag">LAYOUT</div>
-        <img class="card-thumb" src="${layout.thumb||''}" onclick="openThumbZoom('${layout.thumb||''}','${safeName}')" style="cursor:zoom-in">
+        <img class="card-thumb" src="${layout.thumb||''}">
         <div class="card-body">
           <div class="card-name">${name}</div>
           <div class="card-tags">${subtitle||'&nbsp;'}</div>
@@ -794,7 +794,7 @@ function renderGrid() {
             <button class="btn btn-blue btn-sm" onclick="recallLayoutToSlot('${safeName}','h')">↩ H</button>
             <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="recallLayoutToSlot('${safeName}','v')">↩ V</button>
             <button class="btn btn-green btn-sm" onclick="recallLayoutToSlot('${safeName}','both')">↩ Both</button>
-            <button class="btn btn-gray btn-sm" onclick="openThumbZoom('${(layout.thumb||'').replace(/'/g,"\\'")}','${safeName}')" title="Preview">🔍</button>
+            <button class="btn btn-gray btn-sm" onclick="openLayoutPreview('${safeName}')" title="Preview layout">🔍</button>
             <button class="btn btn-gray btn-sm" onclick="renameLayout('${safeName}')" title="Rename layout">✏️</button>
             <button class="btn btn-red btn-sm" onclick="deleteLayoutCard('${safeName}')">🗑</button>
           </div>
@@ -1168,6 +1168,7 @@ async function saveEdited() {
 // ── Preview Modal ─────────────────────────────────
 function openPreview(key, name) {
   document.getElementById('preview-title').textContent = `Preview: ${name}`;
+  document.getElementById('preview-hint').textContent = 'Drag image to reposition. Changes save automatically.';
   const url = `${WORKER}/img/${encodeURIComponent(key)}?t=${Date.now()}`;
   ['h','v'].forEach(slot => {
     const state = slot === 'h' ? activeH : activeV;
@@ -1181,6 +1182,31 @@ function openPreview(key, name) {
       applyImgStyle(img, { scale: 80, fit: 'contain', x: 50, y: 50 }, wrap);
     }
     initBigDrag(wrap, slot, key, name);
+  });
+  openModal('preview-modal');
+}
+
+function openLayoutPreview(name) {
+  const layout = layouts[name];
+  if (!layout) return;
+  document.getElementById('preview-title').textContent = `Layout: ${name}`;
+  document.getElementById('preview-hint').textContent = 'Read-only layout preview.';
+  ['h', 'v'].forEach(slot => {
+    const state = layout[slot];
+    const wrap = document.getElementById(`big-${slot}`);
+    const img = document.getElementById(`big-${slot}-img`);
+    // disable drag for layout preview
+    wrap.onpointerdown = null; wrap.onpointermove = null; wrap.onpointerup = null;
+    wrap.style.cursor = 'default';
+    if (state?.key) {
+      img.src = `${WORKER}/img/${encodeURIComponent(state.key)}`;
+      img.setAttribute('data-key', state.key);
+      img.style.display = '';
+      applyImgStyle(img, state, wrap);
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+    }
   });
   openModal('preview-modal');
 }
