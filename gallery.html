@@ -179,7 +179,7 @@ a,button{cursor:pointer}
     <option value="0">Off</option>
     <option value="2">2×2</option>
     <option value="3">3×3</option>
-    <option value="4" selected>4×4</option>
+    <option value="4">4×4</option>
     <option value="5">5×5</option>
     <option value="10">10×10</option>
     <option value="20">20×20</option>
@@ -189,7 +189,7 @@ a,button{cursor:pointer}
     <option value="80">80×80</option>
     <option value="100">100×100</option>
   </select>
-  <label><input type="checkbox" id="snap-grid"> Snap to grid</label>
+  <label><input type="checkbox" id="snap-grid" onchange="saveGridPrefs()"> Snap to grid</label>
 </div>
 
 <!-- Grid -->
@@ -319,6 +319,16 @@ window.onload = () => {
       if (last.h) { activeH = last.h; updatePreview('h'); document.getElementById('name-h').textContent = last.h.name || last.h.key; document.getElementById('scale-h').value = last.h.scale; document.getElementById('scale-h-val').value = last.h.scale; document.getElementById('fit-h').value = last.h.fit; }
       if (last.v) { activeV = last.v; updatePreview('v'); document.getElementById('name-v').textContent = last.v.name || last.v.key; document.getElementById('scale-v').value = last.v.scale; document.getElementById('scale-v-val').value = last.v.scale; document.getElementById('fit-v').value = last.v.fit; }
     }
+  } catch(e) {}
+  // Restore grid prefs (default: 20×20, visible, snap off)
+  try {
+    const gp = JSON.parse(localStorage.getItem('sg_grid_prefs') || 'null');
+    const size = gp?.size ?? '20';
+    const snap = gp?.snap ?? false;
+    gridVisible = gp?.visible ?? true;
+    document.getElementById('grid-size').value = size;
+    document.getElementById('snap-grid').checked = snap;
+    document.getElementById('grid-toggle').textContent = gridVisible ? '◉ Grid' : '○ Grid';
   } catch(e) {}
   loadGallery();
   loadLayouts();
@@ -514,18 +524,29 @@ function initDrag(wrap, slot) {
 }
 
 let gridVisible = true;
+function saveGridPrefs() {
+  try {
+    localStorage.setItem('sg_grid_prefs', JSON.stringify({
+      visible: gridVisible,
+      size: document.getElementById('grid-size').value,
+      snap: document.getElementById('snap-grid').checked
+    }));
+  } catch(e) {}
+}
 function toggleGrid() {
   gridVisible = !gridVisible;
   document.getElementById('grid-toggle').textContent = gridVisible ? '◉ Grid' : '○ Grid';
   if (gridVisible) updateGridOverlay();
   else document.querySelectorAll('.canvas-wrap').forEach(w => w.style.setProperty('--grid-bg', 'none'));
+  saveGridPrefs();
 }
 
 function updateGridOverlay() {
   const divisions = parseInt(document.getElementById('grid-size').value);
   const wraps = document.querySelectorAll('.canvas-wrap');
-  if (!divisions) {
+  if (!divisions || !gridVisible) {
     wraps.forEach(w => w.style.setProperty('--grid-bg', 'none'));
+    saveGridPrefs();
     return;
   }
   const pct = (100 / divisions).toFixed(6) + '%';
@@ -535,6 +556,7 @@ function updateGridOverlay() {
     w.style.setProperty('--grid-bg', bg);
     w.style.setProperty('--grid-sz', `${pct} ${pct}`);
   });
+  saveGridPrefs();
 }
 
 function copyUrl(slot) {
