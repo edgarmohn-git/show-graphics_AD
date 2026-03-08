@@ -1,38 +1,34 @@
 # Show Graphics AD
 
 Browser source graphics system for dual-format live production (16:9 + 9:16, 4K/30).
-
-Researchers upload device images remotely. The operator selects, scales, and places images in the gallery. vMix (or OBS) displays the result live via browser source — no page reload needed.
+Researchers upload images remotely. Operator places them in the gallery. vMix displays live via browser source — no reload needed.
 
 ---
 
 ## Live URLs
 
-| Page | URL | Who uses it |
+| Page | URL | Who |
 |---|---|---|
-| Upload | https://edgarmohn-git.github.io/show-graphics_AD/upload.html | Researcher (remote) |
+| Upload | https://edgarmohn-git.github.io/show-graphics_AD/upload.html | Researcher (or use Upload button in gallery) |
 | Gallery / Operator | https://edgarmohn-git.github.io/show-graphics_AD/gallery.html | Operator |
-| Display H (16:9) | https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html | vMix / OBS browser source |
-| Display V (9:16) | https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html | vMix / OBS browser source |
-| QR H (16:9) | https://edgarmohn-git.github.io/show-graphics_AD/qr-h.html?url=&size= | vMix / OBS browser source |
-| QR V (9:16) | https://edgarmohn-git.github.io/show-graphics_AD/qr-v.html?url=&size= | vMix / OBS browser source |
+| Display H (16:9) | https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html | vMix browser source |
+| Display V (9:16) | https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html | vMix browser source |
+| QR H (16:9) | https://edgarmohn-git.github.io/show-graphics_AD/qr-h.html?url=&size= | vMix browser source |
+| QR V (9:16) | https://edgarmohn-git.github.io/show-graphics_AD/qr-v.html?url=&size= | vMix browser source |
 
 ---
 
-## How it works
+## Architecture
 
 ```
-Researcher → upload.html → Cloudflare R2 (storage) + KV (index)
-                                        ↓
-Operator   → gallery.html → selects image, places it, pushes state to KV
-                                        ↓
-vMix       → graphic-h/v.html → polls KV every 1.5s → displays image live
+Researcher/Operator → gallery.html → Cloudflare Worker → R2 (images) + KV (state)
+                                                               ↓
+vMix → graphic-h.html / graphic-v.html → polls KV every 1.5s → displays live
 ```
 
-- Images are stored in **Cloudflare R2** (object storage).
-- The image list and active slot state live in **Cloudflare KV** (key-value store).
-- Display pages poll the worker every 1.5 seconds — no page reload needed when switching images.
-- The display canvas is transparent. In vMix/OBS, the image appears on the exact transparent 4K background, positioned where the operator placed it.
+- Images stored permanently in **Cloudflare R2** — persist until deleted
+- Active slot state in **Cloudflare KV** — polled every 1.5s by display pages
+- All authenticated API calls require `X-API-Key` header or `?apikey=` URL param
 
 ---
 
@@ -40,185 +36,159 @@ vMix       → graphic-h/v.html → polls KV every 1.5s → displays image live
 
 | Component | Detail |
 |---|---|
-| Frontend | GitHub Pages (static HTML/CSS/JS) |
-| Backend | Cloudflare Worker (`show-graphics-ad.mohn-edgar.workers.dev`) |
+| Frontend | GitHub Pages (static HTML/CSS/JS, no build step) |
+| Backend | Cloudflare Worker `show-graphics-ad.mohn-edgar.workers.dev` |
 | Storage | Cloudflare R2 bucket `show-graphics-ad` |
-| State | Cloudflare KV namespace `SHOW_GRAPHICS_KV` |
-| Auth | `X-API-Key` header — set via `wrangler secret put API_KEY` |
-| Canvas H | 3840 × 2160 px (16:9, 4K) |
-| Canvas V | 2160 × 3840 px (9:16, 4K vertical) |
+| State | Cloudflare KV `SHOW_GRAPHICS_KV` |
+| Canvas H | 3840 × 2160 px transparent (16:9) |
+| Canvas V | 2160 × 3840 px transparent (9:16) |
 
 ---
 
-## For Researchers — Uploading Images
-
-1. Open **upload.html**
-2. Enter the API key and click **Save Key** (key is remembered for the session)
-3. Select one or more image files (JPEG, PNG, WebP, AVIF, GIF, SVG, BMP — up to 100 MB each)
-   - **1 file:** enter a custom name; preview shown
-   - **Multiple files:** filenames are used as names automatically
-4. Optionally add comma-separated tags (e.g. `phone, samsung, device`)
-5. Click **Upload**
-
----
-
-## For the Operator — Gallery
+## Gallery — Operator Guide
 
 ### Setup
-1. Open **gallery.html**
-2. Enter the API key in the toolbar and press Enter or click Load
+1. Open gallery.html — enter API key → Save Key
+2. Last active slot state is restored automatically from previous session
 
-### Selecting and placing an image
+### Image Library (bottom section)
+- Click **Set H** or **Set V** to assign an image to a slot
+- Library images always load at default: scale 100%, Fit, centered
+- Then adjust scale, fit mode, and drag to position in the slot preview
 
-1. Browse the image grid — click a card to activate the **Select** button
-2. Click **Select H** or **Select V** to assign the image to a slot
-3. The slot preview (top of page) updates immediately
-4. **Drag** inside the slot preview to position the image on the canvas
-5. Adjust **Scale** with the slider or type a value directly (double-click to reset to 100%)
-6. Choose **Fit mode:**
-   - **Fit (show all)** — image fits entirely within the canvas, transparent areas around it
-   - **Fill (crop to fit)** — image fills the full canvas, edges cropped
-7. Changes go live in vMix within 1.5 seconds — no action required
-
-### Scale reference
-
-| Scale | Effect |
+### Slot controls
+| Control | Function |
 |---|---|
-| 100% | Image fills the full slot canvas (contain = letterboxed, fill = cropped) |
-| 50% | Image at half canvas size |
-| 20% | Small — suitable for QR codes, logos, corner graphics |
-| > 100% | Zoomed in — useful with Fill mode to reframe |
+| Scale slider / number | Resize image (10–200%). Double-click number → reset to 100% |
+| Fit (show all) | `object-fit: contain` — full image visible, transparent edges |
+| Fill (crop to fit) | `object-fit: cover` — fills canvas, edges cropped |
+| Drag in preview | Move image position on the transparent canvas |
+| Clear | Remove image from slot |
 
-### Fit mode / positioning examples
+### Preview grid
+- **◉ Grid** toggle — show/hide grid overlay
+- Grid fineness selector: Off / 2×2 up to 100×100
+- **Snap to grid** checkbox — drag snaps to nearest grid intersection
 
-- **QR code bottom-right:** Select QR image → Fit (show all) → Scale ~20% → drag to bottom-right corner
-- **Silhouette shifted right:** Select portrait image → Fit (show all) → Scale 100% → drag right (transparent area appears on left)
-- **Full-bleed background:** Select background image → Fill (crop to fit) → Scale 100% → centered
+### Saved Layouts (top section)
+- Type a name → **💾 Save H**, **💾 Save V**, or **💾 Save Both**
+- Layout card appears with thumbnail — stores exact position, scale, fit
+- **↩ H / ↩ V / ↩ Both** — recall to slot(s) instantly
+- **✏️** — rename layout
+- Layouts are show-ready presets; original images in library remain unchanged
 
-### Layout save and recall
-
-- Type a name in the **Layout name** field
-- **💾 H** — saves current H slot state only
-- **💾 V** — saves current V slot state only
-- **💾 Both** — saves both slots together
-- Select a saved layout from the dropdown → click **Recall** to restore it
-  - Recalling an H-only layout leaves V untouched (and vice versa)
-- A thumbnail preview is shown in the dropdown for visual reference
-
-### Editing images (crop, trim, color knock-out)
-
-Click the **Edit** button on any image card to open the edit modal:
-
-**Crop tab (cropperjs)**
-- Drag the crop box to select a region, then click **Save Crop** — saves as a new PNG
-
-**Trim sides**
-- Individual sliders for Top / Right / Bottom / Left (0–49% each)
-- Live preview updates as you drag
-- Click **Apply + KO** after trimming to run knock-out on top
-
-**Color Knock-out**
-- Click the eyedropper cursor on the image to sample the background color
-- Adjust **Tolerance** to control how aggressively similar colors are removed
-- **KO Soft edges** — smoothstep falloff instead of hard cutoff; handles gradient/vignette backgrounds
-- Click **Apply + KO** to run; result is shown in the preview canvas
-- Click **Save as PNG** to store the result as a new image in the gallery
+### Upload
+- Click **📤 Upload** in toolbar — upload directly without switching pages
+- Supports: JPEG, PNG, WebP, AVIF, GIF, SVG, BMP — up to 100 MB/file
+- Multi-file: select multiple → filenames used as names
 
 ### Multi-select delete
+- **☑ Select** → check any image or layout cards → **Delete**
 
-1. Click **☑ Select** in the toolbar to enter select mode
-2. Check any number of image cards
-3. Click **Delete Selected** — confirms before deleting
-
-### Rebuild index
-
-If the image list is ever out of sync (e.g. after a manual R2 operation), click **⚙ Rebuild Index** in the toolbar. This scans R2 directly and rebuilds the KV index.
+### Rebuild Index
+- **⚙ Rebuild Index** — rescans R2 and rebuilds KV index (use if gallery shows empty)
 
 ---
 
 ## vMix Setup
 
-Add two browser sources:
-
-| Input name | URL | Canvas size |
+| Input | URL | Size |
 |---|---|---|
 | Graphic H | `https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html` | 3840 × 2160 |
 | Graphic V | `https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html` | 2160 × 3840 |
 
-- Enable **transparent background** in browser source settings
-- No reload is needed when the operator switches images — the page polls and updates automatically
+- Enable **transparent background** in vMix browser source settings
+- Pages poll every 1.5s — no reload needed when operator switches images
+- Position/scale/fit set in gallery is reflected live on the transparent canvas
 
 ### QR browser sources
-
-Pass `url` and `size` as query parameters:
-
 ```
 qr-h.html?url=https://example.com&size=400
 qr-v.html?url=https://example.com&size=400
 ```
 
-`size` is the QR code pixel size (default 300). The page background is transparent.
-
 ---
 
 ## Worker API
-
-All authenticated endpoints require header `X-API-Key: <key>`.
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/active?slot=h\|v` | public | Active slot state (polled by display pages) |
 | GET | `/img/:key` | public | Serve image from R2 |
-| POST | `/upload` | ✓ | Upload image (multipart: file, name, tags) |
-| GET | `/list` | ✓ | List all images (KV index) |
-| GET | `/rebuild` | ✓ | Rebuild KV index from R2 |
-| PUT | `/select` | ✓ | Set active image for a slot |
-| DELETE | `/select?slot=` | ✓ | Clear a slot |
-| DELETE | `/img/:key` | ✓ | Delete image from R2 and index |
+| GET | `/go?slot=&key=&...&apikey=` | URL param | Force graphic select (vMix scripting) |
+| POST | `/upload` | X-API-Key | Upload image (multipart) |
+| GET | `/list` | X-API-Key | List all images |
+| GET | `/rebuild` | X-API-Key | Rebuild KV index from R2 |
+| PUT | `/select` | X-API-Key | Set active image for slot |
+| DELETE | `/select?slot=` | X-API-Key | Clear slot |
+| DELETE | `/img/:key` | X-API-Key | Delete image |
 
-**PUT /select payload:**
-```json
-{ "slot": "h", "key": "filename.jpg", "name": "Samsung S25", "scale": 100, "fit": "contain", "x": 50, "y": 50 }
+### GET /go — vMix trigger endpoint
+Force any graphic into any slot via a single GET URL (usable from vMix scripts, Companion, web triggers):
+
 ```
-`x` and `y` are the image center position as a percentage of the canvas (0–100, default 50).
+/go?slot=h|v|both&key=FILENAME&scale=100&fit=contain&x=50&y=50&name=LABEL&apikey=KEY
+```
+
+| Param | Required | Default | Notes |
+|---|---|---|---|
+| `slot` | ✓ | — | `h`, `v`, or `both` |
+| `key` | ✓ | — | Exact R2 filename |
+| `apikey` | ✓ | — | Or use `X-API-Key` header |
+| `scale` | — | 100 | 10–200 |
+| `fit` | — | contain | `contain` or `cover` |
+| `x` | — | 50 | Center X as % of canvas |
+| `y` | — | 50 | Center Y as % of canvas |
+| `name` | — | key | Display label in gallery |
 
 ---
 
-## Supported image formats
+## Positioning model
 
-JPEG, PNG, WebP, AVIF, GIF, SVG, BMP — up to 100 MB per file.
+- Scale 100% = image fills the canvas (contain = letterboxed, cover = cropped)
+- Scale 50% = half canvas size
+- x/y = image center as % of canvas (0–100, default 50/50 = centered)
+- Gallery preview is proportionally identical to display page — what you see is what vMix shows
 
 ---
 
-## Deploy / development
+## Storage
+
+Images live in Cloudflare R2 — permanent object storage. No expiry, no auto-purge. Free tier: 10 GB. Images persist until explicitly deleted.
+
+---
+
+## Security notes
+
+- API key stored in Cloudflare Secrets only — never in any file or commit
+- CORS restricted to `https://edgarmohn-git.github.io`
+- `/go` with `?apikey=` in URL: acceptable for private show use; key visible in logs. For stricter use, send key as `X-API-Key` header from vMix VB.NET script instead
+- After each show: rotate key with `npx wrangler secret put API_KEY`
+
+---
+
+## Deploy workflow
 
 ```bash
 cd /Users/drean/Ponyhof/show-graphics_AD
-
-# Deploy HTML changes
-git add -A && git commit -m "..." && git push
-
-# Deploy Worker changes
-npx wrangler deploy
-
-# Reset API key
-npx wrangler secret put API_KEY
-
-# Watch Worker logs
-npx wrangler tail
+git add -A && git commit -m "..." && git push   # HTML/frontend changes
+npx wrangler deploy                              # Worker changes
+npx wrangler secret put API_KEY                 # Rotate API key
+npx wrangler tail                               # Live Worker logs
 ```
-
-GitHub Pages serves the frontend. The Cloudflare Worker is deployed separately via Wrangler.
 
 ---
 
 ## Project status
 
-- ✅ Upload (single + multi-file), gallery, display pages (H + V), QR pages
-- ✅ Worker: R2 storage, KV state, authenticated API
-- ✅ Drag-to-place, scale, fit modes, position sync gallery ↔ display pages
-- ✅ Crop (cropperjs), trim sides, color knock-out (hard + soft edges)
-- ✅ Layout save/recall with thumbnails (localStorage, per-slot)
-- ✅ Multi-select delete, rebuild index
+- ✅ Upload (modal in gallery + standalone upload.html), gallery, display pages H+V, QR pages
+- ✅ Worker: R2 storage, KV state, authenticated API, /go vMix trigger endpoint
+- ✅ Drag-to-place, scale, fit modes — gallery preview = display page (pixel-accurate)
+- ✅ Crop, trim sides, color knock-out (hard + soft edges)
+- ✅ Layout save/recall as grid cards (separate from image library)
+- ✅ Multi-select delete (images + layouts), rename layouts
+- ✅ Preview grid overlay (2×2 to 100×100, snap-to-grid, show/hide toggle)
+- ✅ Auto-save slot state across page reloads
+- ✅ Security: .gitignore, CORS origin enforced, API key never in code
 - ⬜ Bitfocus Companion webhook (optional)
 - ⬜ remove.bg API integration (optional)
