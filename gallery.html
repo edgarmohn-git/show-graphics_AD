@@ -36,7 +36,7 @@ a,button{cursor:pointer}
 .canvas-wrap.ratio-h{aspect-ratio:16/9}
 .canvas-wrap.ratio-v{aspect-ratio:9/16;max-height:calc((50vw - 28px) * (9/16));width:auto;margin:0 auto}
 .canvas-wrap img.preview-img{position:absolute;transform-origin:center center;transition:transform .1s,left .1s,top .1s;z-index:1}
-.grid-overlay{position:absolute;inset:0;pointer-events:none;z-index:2}
+.canvas-wrap::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:10;background-image:var(--grid-bg,none);background-size:var(--grid-sz,25% 25%)}
 .grid-controls{display:flex;gap:10px;align-items:center;padding:6px 16px;background:#111;border-bottom:1px solid #1e1e1e;font-size:.75rem;color:#666}
 .grid-controls select{background:#1e1e1e;color:#ccc;border:1px solid #2a2a2a;border-radius:4px;padding:3px 7px;font-size:.75rem}
 .grid-controls label{display:flex;align-items:center;gap:5px;cursor:pointer;color:#777}
@@ -57,8 +57,9 @@ a,button{cursor:pointer}
 .card.pick-selected{outline:3px solid #f59e0b;outline-offset:-2px;border-color:#f59e0b}
 .card.layout-card{border-color:#78350f}
 .layout-flag{position:absolute;top:7px;right:7px;background:#78350f;color:#fcd34d;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.06em;text-transform:uppercase;z-index:3}
-.grid-section{grid-column:1/-1;font-size:.7rem;color:#555;text-transform:uppercase;letter-spacing:.08em;padding:10px 2px 4px;border-top:1px solid #1e1e1e;margin-top:4px}
-.grid-section:first-child{border-top:none;margin-top:0;padding-top:2px}
+.grid-section{grid-column:1/-1;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.1em;padding:12px 4px 6px;border-top:1px solid #2a2a2a;margin-top:4px}
+.grid-section:first-child{border-top:none;margin-top:0;padding-top:4px}
+.grid-section-empty{grid-column:1/-1;font-size:.78rem;color:#444;padding:10px 4px;font-style:italic}
 .card-cb{position:absolute;top:7px;left:7px;z-index:3;width:18px;height:18px;cursor:pointer;accent-color:#f59e0b;display:none}
 .card-thumb{width:100%;height:140px;object-fit:contain;display:block;background:#111}
 .card-body{padding:8px}
@@ -136,7 +137,6 @@ a,button{cursor:pointer}
     <h3>🔵 Slot H — Horizontal <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a><button onclick="copyUrl('h')" title="Copy URL" style="background:none;border:none;color:#444;cursor:pointer;font-size:.75rem;margin-left:4px;padding:0" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#444'">📋</button></h3>
     <div class="canvas-wrap ratio-h" id="preview-h">
       <div class="canvas-empty">empty</div>
-      <div class="grid-overlay" id="grid-overlay-h"></div>
     </div>
     <div class="slot-name" id="name-h">—</div>
     <div class="slot-controls">
@@ -155,7 +155,6 @@ a,button{cursor:pointer}
     <h3>🟣 Slot V — Vertical <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a><button onclick="copyUrl('v')" title="Copy URL" style="background:none;border:none;color:#444;cursor:pointer;font-size:.75rem;margin-left:4px;padding:0" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#444'">📋</button></h3>
     <div class="canvas-wrap ratio-v" id="preview-v">
       <div class="canvas-empty">empty</div>
-      <div class="grid-overlay" id="grid-overlay-v"></div>
     </div>
     <div class="slot-name" id="name-v">—</div>
     <div class="slot-controls">
@@ -184,7 +183,9 @@ a,button{cursor:pointer}
     <option value="10">10×10</option>
     <option value="20">20×20</option>
     <option value="25">25×25</option>
+    <option value="40">40×40</option>
     <option value="50">50×50</option>
+    <option value="80">80×80</option>
     <option value="100">100×100</option>
   </select>
   <label><input type="checkbox" id="snap-grid"> Snap to grid</label>
@@ -502,16 +503,17 @@ function initDrag(wrap, slot) {
 
 function updateGridOverlay() {
   const divisions = parseInt(document.getElementById('grid-size').value);
-  const overlays = document.querySelectorAll('.grid-overlay');
+  const wraps = document.querySelectorAll('.canvas-wrap');
   if (!divisions) {
-    overlays.forEach(o => { o.style.backgroundImage = 'none'; });
+    wraps.forEach(w => w.style.setProperty('--grid-bg', 'none'));
     return;
   }
-  const pct = (100 / divisions).toFixed(4) + '%';
-  const line = 'rgba(255,255,255,0.3)';
-  overlays.forEach(o => {
-    o.style.backgroundImage = `linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`;
-    o.style.backgroundSize = `${pct} ${pct}`;
+  const pct = (100 / divisions).toFixed(6) + '%';
+  const line = 'rgba(255,255,255,0.35)';
+  const bg = `linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`;
+  wraps.forEach(w => {
+    w.style.setProperty('--grid-bg', bg);
+    w.style.setProperty('--grid-sz', `${pct} ${pct}`);
   });
 }
 
@@ -610,11 +612,19 @@ function renderGrid() {
   // ── Saved layout cards ──
   const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
   const layoutNames = Object.keys(layouts).sort();
-  if (layoutNames.length) {
+  {
     const lbl = document.createElement('div');
     lbl.className = 'grid-section';
     lbl.textContent = 'Saved Layouts';
     grid.appendChild(lbl);
+  }
+  if (!layoutNames.length) {
+    const ph = document.createElement('div');
+    ph.className = 'grid-section-empty';
+    ph.textContent = 'No layouts saved yet — name a layout above and click 💾 Save H, Save V or Save Both.';
+    grid.appendChild(ph);
+  }
+  if (layoutNames.length) {
     layoutNames.forEach(name => {
       const layout = layouts[name];
       const safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -645,10 +655,10 @@ function renderGrid() {
   const filtered = images.filter(img =>
     !q || img.name.toLowerCase().includes(q) || (img.tags||[]).some(t=>t.toLowerCase().includes(q))
   );
-  if (layoutNames.length) {
+  {
     const lbl = document.createElement('div');
     lbl.className = 'grid-section';
-    lbl.textContent = 'Images';
+    lbl.textContent = 'Image Library';
     grid.appendChild(lbl);
   }
   filtered.forEach(img => {
