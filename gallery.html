@@ -50,8 +50,14 @@ a,button{cursor:pointer}
 /* ── Grid ── */
 .grid-wrap{padding:12px 16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.card{position:relative;background:#1a1a1a;border-radius:7px;overflow:hidden;border:2px solid transparent;transition:border-color .2s,transform .15s;transform-origin:center top}
-.card:hover{transform:scale(1.9);z-index:30}
+.card{position:relative;background:#1a1a1a;border-radius:7px;overflow:hidden;border:2px solid transparent;transition:border-color .2s}
+/* ── Thumb zoom lightbox ── */
+#thumb-zoom{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+#thumb-zoom.open{display:flex}
+#thumb-zoom img{max-width:90vw;max-height:80vh;object-fit:contain;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.8)}
+#thumb-zoom-title{color:#ccc;font-size:.85rem;text-align:center}
+#thumb-zoom-close{position:fixed;top:18px;right:22px;background:#333;border:none;color:#fff;font-size:1.1rem;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+#thumb-zoom-close:hover{background:#555}
 .card.sel-h{border-color:#2563eb}
 .card.sel-v{border-color:#7c3aed}
 .card.sel-hv{border-color:#0d9488}
@@ -780,7 +786,7 @@ function renderGrid() {
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isLayoutPicked ? 'checked' : ''} style="display:${selectMode?'block':'none'}" onchange="toggleLayoutSelect('${safeName}',this)">
         <div class="layout-flag">LAYOUT</div>
-        <img class="card-thumb" src="${layout.thumb||''}" style="object-fit:cover">
+        <img class="card-thumb" src="${layout.thumb||''}" onclick="openThumbZoom('${layout.thumb||''}','${safeName}')" style="cursor:zoom-in">
         <div class="card-body">
           <div class="card-name">${name}</div>
           <div class="card-tags">${subtitle||'&nbsp;'}</div>
@@ -788,6 +794,7 @@ function renderGrid() {
             <button class="btn btn-blue btn-sm" onclick="recallLayoutToSlot('${safeName}','h')">↩ H</button>
             <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="recallLayoutToSlot('${safeName}','v')">↩ V</button>
             <button class="btn btn-green btn-sm" onclick="recallLayoutToSlot('${safeName}','both')">↩ Both</button>
+            <button class="btn btn-gray btn-sm" onclick="openThumbZoom('${(layout.thumb||'').replace(/'/g,"\\'")}','${safeName}')" title="Preview">🔍</button>
             <button class="btn btn-gray btn-sm" onclick="renameLayout('${safeName}')" title="Rename layout">✏️</button>
             <button class="btn btn-red btn-sm" onclick="deleteLayoutCard('${safeName}')">🗑</button>
           </div>
@@ -1323,6 +1330,18 @@ async function deleteLayoutCard(name) {
 }
 
 
+// ── Thumb zoom lightbox ───────────────────────────
+function openThumbZoom(src, title) {
+  if (!src) return;
+  const el = document.getElementById('thumb-zoom');
+  document.getElementById('thumb-zoom-img').src = src;
+  document.getElementById('thumb-zoom-title').textContent = title || '';
+  el.classList.add('open');
+}
+function closeThumbZoom() {
+  document.getElementById('thumb-zoom').classList.remove('open');
+}
+
 // ── Modal helpers ─────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) {
@@ -1332,8 +1351,20 @@ function closeModal(id) {
 document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) closeModal(el.id); });
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(el => closeModal(el.id)); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeThumbZoom();
+    document.querySelectorAll('.modal-overlay.open').forEach(el => closeModal(el.id));
+  }
+});
 </script>
+
+<!-- Thumb zoom lightbox -->
+<div id="thumb-zoom" onclick="if(event.target===this)closeThumbZoom()">
+  <button id="thumb-zoom-close" onclick="closeThumbZoom()" title="Close (Esc)">✕</button>
+  <img id="thumb-zoom-img" src="" alt="">
+  <div id="thumb-zoom-title"></div>
+</div>
 
 <!-- Upload Modal -->
 <div class="modal-overlay" id="upload-modal">
