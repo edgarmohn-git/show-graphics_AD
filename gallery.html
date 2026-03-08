@@ -130,7 +130,7 @@ a,button{cursor:pointer}
 <!-- Slot previews -->
 <div class="slots">
   <div class="slot-panel">
-    <h3>🔵 Slot H — Horizontal</h3>
+    <h3>🔵 Slot H — Horizontal <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a></h3>
     <div class="canvas-wrap ratio-h" id="preview-h">
       <div class="canvas-empty">empty</div>
     </div>
@@ -144,12 +144,11 @@ a,button{cursor:pointer}
         <option value="contain">Fit (show all)</option>
         <option value="cover">Fill (crop to fit)</option>
       </select>
-      <button class="btn btn-gray btn-sm" onclick="centerSlot('h')" title="Reset position to center">⊕</button>
       <button class="btn btn-red btn-sm" onclick="clearSlot('h')">Clear</button>
     </div>
   </div>
   <div class="slot-panel">
-    <h3>🟣 Slot V — Vertical</h3>
+    <h3>🟣 Slot V — Vertical <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a></h3>
     <div class="canvas-wrap ratio-v" id="preview-v">
       <div class="canvas-empty">empty</div>
     </div>
@@ -163,7 +162,6 @@ a,button{cursor:pointer}
         <option value="contain">Fit (show all)</option>
         <option value="cover">Fill (crop to fit)</option>
       </select>
-      <button class="btn btn-gray btn-sm" onclick="centerSlot('v')" title="Reset position to center">⊕</button>
       <button class="btn btn-red btn-sm" onclick="clearSlot('v')">Clear</button>
     </div>
   </div>
@@ -364,15 +362,9 @@ function updatePreview(slot) {
 
 function applyImgStyle(img, state, wrap) {
   const s = state.scale / 100;
-  if (state.fit === 'cover') {
-    img.style.width = '100%'; img.style.height = '100%';
-    img.style.objectFit = 'cover';
-    img.style.maxWidth = ''; img.style.maxHeight = '';
-  } else {
-    img.style.width = 'auto'; img.style.height = 'auto';
-    img.style.objectFit = 'contain';
-    img.style.maxWidth = '100%'; img.style.maxHeight = '100%';
-  }
+  img.style.width = '100%'; img.style.height = '100%';
+  img.style.objectFit = state.fit === 'cover' ? 'cover' : 'contain';
+  img.style.maxWidth = ''; img.style.maxHeight = '';
   img.style.left = state.x + '%';
   img.style.top = state.y + '%';
   img.style.transform = `translate(-50%,-50%) scale(${s})`;
@@ -562,16 +554,6 @@ async function selectSlot(slot, key, name) {
   } catch(e) { setStatus('Error: ' + e.message, false); }
 }
 
-async function centerSlot(slot) {
-  const state = slot === 'h' ? activeH : activeV;
-  if (!state) return;
-  state.x = 50; state.y = 50;
-  const wrap = document.getElementById(`preview-${slot}`);
-  const img = wrap.querySelector('img.preview-img');
-  if (img) applyImgStyle(img, state, wrap);
-  await saveSlotState(slot);
-  setStatus(`Slot ${slot.toUpperCase()} centered.`, true);
-}
 
 async function clearSlot(slot) {
   try {
