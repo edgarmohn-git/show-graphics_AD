@@ -115,7 +115,8 @@ a,button{cursor:pointer}
 
 <!-- Toolbar -->
 <div class="toolbar">
-  <input type="password" id="api-key" placeholder="API Key">
+  <input type="password" id="api-key" placeholder="API Key" onkeydown="if(event.key==='Enter')saveKey()">
+  <button class="btn btn-gray" onclick="toggleKeyVis()" title="Show/hide key" id="key-vis-btn">👁</button>
   <button class="btn btn-gray" onclick="saveKey()">Save Key</button>
   <input type="text" id="search" placeholder="Search name or tag…" oninput="renderGrid()">
   <button class="btn btn-green" onclick="openModal('upload-modal')">📤 Upload</button>
@@ -337,9 +338,27 @@ window.onload = () => {
   updateGridOverlay();
 };
 
-function saveKey() {
+async function saveKey() {
   const k = document.getElementById('api-key').value.trim();
-  if (k) { sessionStorage.setItem('sg_api_key', k); setStatus('Key saved.', true); }
+  if (!k) { setStatus('Enter an API key first.', false); return; }
+  sessionStorage.setItem('sg_api_key', k);
+  try {
+    const r = await fetch(`${WORKER}/list`, { headers: { 'X-API-Key': k } });
+    if (r.ok) {
+      const imgs = await r.json();
+      images = imgs;
+      setStatus(`Key accepted — ${imgs.length} image(s) found.`, true);
+      await loadLayouts();
+      renderGrid();
+    } else {
+      sessionStorage.removeItem('sg_api_key');
+      setStatus('Wrong key — access denied.', false);
+    }
+  } catch(e) { setStatus('Connection error: ' + e.message, false); }
+}
+function toggleKeyVis() {
+  const el = document.getElementById('api-key');
+  el.type = el.type === 'password' ? 'text' : 'password';
 }
 function apiKey() { return sessionStorage.getItem('sg_api_key') || ''; }
 
