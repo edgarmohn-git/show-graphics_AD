@@ -21,13 +21,13 @@ Researchers upload images remotely. Operator places them in the gallery. vMix di
 ## Architecture
 
 ```
-Researcher/Operator → gallery.html → Cloudflare Worker → R2 (images) + KV (state)
+Researcher/Operator → gallery.html → Cloudflare Worker → R2 (images) + KV (state + layouts)
                                                                ↓
 vMix → graphic-h.html / graphic-v.html → polls KV every 1.5s → displays live
 ```
 
 - Images stored permanently in **Cloudflare R2** — persist until deleted
-- Active slot state in **Cloudflare KV** — polled every 1.5s by display pages
+- Active slot state and saved layouts in **Cloudflare KV** — layouts shared across all browsers
 - All authenticated API calls require `X-API-Key` header or `?apikey=` URL param
 
 ---
@@ -49,11 +49,12 @@ vMix → graphic-h.html / graphic-v.html → polls KV every 1.5s → displays li
 
 ### Setup
 1. Open gallery.html — enter API key → Save Key
-2. Last active slot state is restored automatically from previous session
+2. Last active slot state is restored automatically on page reload
+3. Saved layouts load automatically from the server — visible to all operators logged in with the same key
 
 ### Image Library (bottom section)
 - Click **Set H** or **Set V** to assign an image to a slot
-- Library images always load at default: scale 100%, Fit, centered
+- Library images always load at default: scale 100%, Fit (show all), centered
 - Then adjust scale, fit mode, and drag to position in the slot preview
 
 ### Slot controls
@@ -67,15 +68,17 @@ vMix → graphic-h.html / graphic-v.html → polls KV every 1.5s → displays li
 
 ### Preview grid
 - **◉ Grid** toggle — show/hide grid overlay
-- Grid fineness selector: Off / 2×2 up to 100×100
+- Grid fineness selector: Off / 2×2 up to 100×100 (default: 20×20)
 - **Snap to grid** checkbox — drag snaps to nearest grid intersection
+- Grid settings (on/off, size, snap) are persisted across page reloads
 
 ### Saved Layouts (top section)
 - Type a name → **💾 Save H**, **💾 Save V**, or **💾 Save Both**
 - Layout card appears with thumbnail — stores exact position, scale, fit
 - **↩ H / ↩ V / ↩ Both** — recall to slot(s) instantly
 - **✏️** — rename layout
-- Layouts are show-ready presets; original images in library remain unchanged
+- Layouts are stored on the server (Cloudflare KV) — shared across all browsers and operators
+- Original images in library remain unchanged
 
 ### Upload
 - Click **📤 Upload** in toolbar — upload directly without switching pages
@@ -83,10 +86,10 @@ vMix → graphic-h.html / graphic-v.html → polls KV every 1.5s → displays li
 - Multi-file: select multiple → filenames used as names
 
 ### Multi-select delete
-- **☑ Select** → check any image or layout cards → **Delete**
+- **☑ Select** → check any image or layout cards → **🗑 Delete**
 
 ### Rebuild Index
-- **⚙ Rebuild Index** — rescans R2 and rebuilds KV index (use if gallery shows empty)
+- **⚙ Rebuild Index** — rescans R2 and rebuilds KV index (use if gallery shows empty after data loss)
 
 ---
 
@@ -122,6 +125,9 @@ qr-v.html?url=https://example.com&size=400
 | PUT | `/select` | X-API-Key | Set active image for slot |
 | DELETE | `/select?slot=` | X-API-Key | Clear slot |
 | DELETE | `/img/:key` | X-API-Key | Delete image |
+| GET | `/layouts` | X-API-Key | List all saved layouts |
+| PUT | `/layouts/:name` | X-API-Key | Save/update a layout |
+| DELETE | `/layouts/:name` | X-API-Key | Delete a layout |
 
 ### GET /go — vMix trigger endpoint
 Force any graphic into any slot via a single GET URL (usable from vMix scripts, Companion, web triggers):
@@ -149,6 +155,17 @@ Force any graphic into any slot via a single GET URL (usable from vMix scripts, 
 - Scale 50% = half canvas size
 - x/y = image center as % of canvas (0–100, default 50/50 = centered)
 - Gallery preview is proportionally identical to display page — what you see is what vMix shows
+
+---
+
+## Persistent state
+
+| What | Where | Scope |
+|---|---|---|
+| Active slot H/V | `localStorage` | Browser (restored on reload) |
+| Grid on/off, size, snap | `localStorage` | Browser (restored on reload) |
+| API key | `sessionStorage` | Browser tab (cleared on close — intentional) |
+| Saved layouts | Cloudflare KV | Server — shared across all browsers |
 
 ---
 
@@ -185,9 +202,10 @@ npx wrangler tail                               # Live Worker logs
 - ✅ Worker: R2 storage, KV state, authenticated API, /go vMix trigger endpoint
 - ✅ Drag-to-place, scale, fit modes — gallery preview = display page (pixel-accurate)
 - ✅ Crop, trim sides, color knock-out (hard + soft edges)
-- ✅ Layout save/recall as grid cards (separate from image library)
+- ✅ Layout save/recall as grid cards — stored in Cloudflare KV, shared across browsers
 - ✅ Multi-select delete (images + layouts), rename layouts
-- ✅ Preview grid overlay (2×2 to 100×100, snap-to-grid, show/hide toggle)
+- ✅ Preview grid overlay (2×2 to 100×100, snap-to-grid, show/hide toggle, default 20×20)
+- ✅ Grid preferences persistent across page reloads
 - ✅ Auto-save slot state across page reloads
 - ✅ Security: .gitignore, CORS origin enforced, API key never in code
 - ⬜ Bitfocus Companion webhook (optional)
