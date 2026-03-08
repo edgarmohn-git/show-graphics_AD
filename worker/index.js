@@ -62,6 +62,25 @@ export default {
       return cors(r, origin);
     }
 
+    // --- Quick trigger (GET, apikey as URL param, usable from vMix scripts) ---
+    if (request.method === 'GET' && path === '/go') {
+      const k = url.searchParams.get('apikey') || request.headers.get('X-API-Key');
+      if (k !== env.API_KEY) return error('Unauthorized', 401, origin);
+      const slot = url.searchParams.get('slot');   // h | v | both
+      const key  = url.searchParams.get('key');
+      if (!slot || !key) return error('slot and key required', 400, origin);
+      const name  = url.searchParams.get('name')  || key;
+      const scale = parseFloat(url.searchParams.get('scale') || '100');
+      const fit   = url.searchParams.get('fit')   || 'contain';
+      const x     = parseFloat(url.searchParams.get('x')    || '50');
+      const y     = parseFloat(url.searchParams.get('y')    || '50');
+      const slots = slot === 'both' ? ['h', 'v'] : [slot];
+      for (const s of slots) {
+        await env.KV.put(`active_${s}`, JSON.stringify({ key, name, scale, fit, x, y, updatedAt: new Date().toISOString() }));
+      }
+      return json({ ok: true, slot, key }, 200, origin);
+    }
+
     // --- AUTH REQUIRED below ---
     if (!checkAuth(request, env)) {
       return error('Unauthorized', 401, origin);
