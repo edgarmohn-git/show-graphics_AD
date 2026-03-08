@@ -331,8 +331,8 @@ window.onload = () => {
     document.getElementById('snap-grid').checked = snap;
     document.getElementById('grid-toggle').textContent = gridVisible ? '◉ Grid' : '○ Grid';
   } catch(e) {}
-  loadGallery();
-  loadLayouts();
+  if (apiKey()) { loadGallery(); loadLayouts(); }
+  else renderGrid(); // show "enter key" placeholder
   pollActive();
   setInterval(pollActive, 3000);
   updateGridOverlay();
@@ -371,10 +371,12 @@ async function loadLayouts() {
   renderGrid();
 }
 
+let statusTimer = null;
 function setStatus(msg, ok) {
   const el = document.getElementById('status');
   el.textContent = msg; el.className = ok ? 'ok' : 'err';
-  setTimeout(() => el.style.display = 'none', 3000);
+  if (statusTimer) clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { el.style.display = 'none'; statusTimer = null; }, 3000);
 }
 
 // ── Data ──────────────────────────────────────────
@@ -412,15 +414,25 @@ async function pollActive() {
     const vChanged = JSON.stringify(rv) !== JSON.stringify(activeV);
     const draggingH = dragState?.slot === 'h';
     const draggingV = dragState?.slot === 'v';
-    if (!draggingH) { activeH = rh; if (hChanged) updatePreview('h'); }
-    if (!draggingV) { activeV = rv; if (vChanged) updatePreview('v'); }
-    document.getElementById('name-h').textContent = rh?.name || (rh ? rh.key : '—');
-    document.getElementById('name-v').textContent = rv?.name || (rv ? rv.key : '—');
-    if (rh) { document.getElementById('scale-h').value = rh.scale; document.getElementById('scale-h-val').value = rh.scale; document.getElementById('fit-h').value = rh.fit; }
-    if (rv) { document.getElementById('scale-v').value = rv.scale; document.getElementById('scale-v-val').value = rv.scale; document.getElementById('fit-v').value = rv.fit; }
+    if (!draggingH) {
+      activeH = rh;
+      if (hChanged) {
+        updatePreview('h');
+        document.getElementById('name-h').textContent = rh?.name || (rh ? rh.key : '—');
+        if (rh) { document.getElementById('scale-h').value = rh.scale; document.getElementById('scale-h-val').value = rh.scale; document.getElementById('fit-h').value = rh.fit; }
+      }
+    }
+    if (!draggingV) {
+      activeV = rv;
+      if (vChanged) {
+        updatePreview('v');
+        document.getElementById('name-v').textContent = rv?.name || (rv ? rv.key : '—');
+        if (rv) { document.getElementById('scale-v').value = rv.scale; document.getElementById('scale-v-val').value = rv.scale; document.getElementById('fit-v').value = rv.fit; }
+      }
+    }
     // Auto-save state for next page load
     try { localStorage.setItem('sg_last_state', JSON.stringify({ h: rh, v: rv })); } catch(e) {}
-    renderGrid();
+    if (hChanged || vChanged) renderGrid();
   } catch(e) {}
 }
 
@@ -743,7 +755,10 @@ function renderGrid() {
       </div>`;
     grid.appendChild(card);
   });
-  if (!layoutNames.length && !filtered.length) grid.innerHTML = '<p style="color:#444;padding:20px">No images found.</p>';
+  if (!layoutNames.length && !filtered.length) {
+    const msg = apiKey() ? 'No images found.' : 'Enter API key and click Save Key to load the gallery.';
+    grid.innerHTML = `<p style="color:#555;padding:20px">${msg}</p>`;
+  }
 }
 
 // ── Multi-select ──────────────────────────────────
