@@ -98,6 +98,14 @@ a,button{cursor:pointer}
   <input type="text" id="search" placeholder="Search name or tag…" oninput="renderGrid()">
   <button class="btn btn-gray" onclick="loadGallery()">↺ Refresh</button>
   <button class="btn btn-gray" onclick="rebuildIndex()" title="Rebuild image list from R2 storage (use if gallery shows empty after images were uploaded)">⚙ Rebuild Index</button>
+  <span style="color:#333;padding:0 4px">|</span>
+  <input type="text" id="layout-name" placeholder="Layout name…" style="width:140px">
+  <button class="btn btn-green btn-sm" onclick="saveLayout()">💾 Save Layout</button>
+  <select id="layout-select" style="background:#1e1e1e;color:#ccc;border:1px solid #333;border-radius:4px;padding:6px 8px;font-size:.82rem">
+    <option value="">— Recall layout —</option>
+  </select>
+  <button class="btn btn-blue btn-sm" onclick="recallLayout()">▶ Recall</button>
+  <button class="btn btn-red btn-sm" onclick="deleteLayout()">✕</button>
 </div>
 <div id="status"></div>
 
@@ -115,8 +123,8 @@ a,button{cursor:pointer}
       <span id="scale-h-val">100%</span>
       <label>Fit</label>
       <select id="fit-h" onchange="onFitChange('h')">
-        <option value="contain">Contain</option>
-        <option value="cover">Cover</option>
+        <option value="contain">Fit (show all)</option>
+        <option value="cover">Fill (crop to fit)</option>
       </select>
       <button class="btn btn-red btn-sm" onclick="clearSlot('h')">Clear</button>
     </div>
@@ -133,8 +141,8 @@ a,button{cursor:pointer}
       <span id="scale-v-val">100%</span>
       <label>Fit</label>
       <select id="fit-v" onchange="onFitChange('v')">
-        <option value="contain">Contain</option>
-        <option value="cover">Cover</option>
+        <option value="contain">Fit (show all)</option>
+        <option value="cover">Fill (crop to fit)</option>
       </select>
       <button class="btn btn-red btn-sm" onclick="clearSlot('v')">Clear</button>
     </div>
@@ -237,6 +245,7 @@ window.onload = () => {
   loadGallery();
   pollActive();
   setInterval(pollActive, 3000);
+  loadLayoutList();
 };
 
 function saveKey() {
@@ -612,6 +621,66 @@ function initBigDrag(wrap, slot, key, name) {
     }
     dragState = null;
   };
+}
+
+// ── Layouts ───────────────────────────────────────
+const LAYOUTS_KEY = 'sg_layouts';
+
+function loadLayoutList() {
+  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
+  const sel = document.getElementById('layout-select');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— Recall layout —</option>';
+  Object.keys(layouts).sort().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  if (prev && layouts[prev]) sel.value = prev;
+}
+
+function saveLayout() {
+  const name = document.getElementById('layout-name').value.trim();
+  if (!name) { setStatus('Enter a layout name first.', false); return; }
+  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
+  layouts[name] = { h: activeH ? { ...activeH } : null, v: activeV ? { ...activeV } : null };
+  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  loadLayoutList();
+  document.getElementById('layout-select').value = name;
+  setStatus(`Layout "${name}" saved.`, true);
+}
+
+async function recallLayout() {
+  const name = document.getElementById('layout-select').value;
+  if (!name) { setStatus('Select a layout to recall.', false); return; }
+  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
+  const layout = layouts[name];
+  if (!layout) return;
+  for (const slot of ['h', 'v']) {
+    const state = layout[slot];
+    if (state) {
+      await fetch(`${WORKER}/select`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+        body: JSON.stringify({ slot, key: state.key, name: state.name || state.key, scale: state.scale, fit: state.fit, x: state.x, y: state.y })
+      });
+    } else {
+      await fetch(`${WORKER}/select?slot=${slot}`, { method: 'DELETE', headers: { 'X-API-Key': apiKey() } });
+    }
+  }
+  setStatus(`Layout "${name}" recalled.`, true);
+  await pollActive();
+}
+
+function deleteLayout() {
+  const name = document.getElementById('layout-select').value;
+  if (!name) return;
+  if (!confirm(`Delete layout "${name}"?`)) return;
+  const layouts = JSON.parse(localStorage.getItem(LAYOUTS_KEY) || '{}');
+  delete layouts[name];
+  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  loadLayoutList();
+  setStatus(`Layout "${name}" deleted.`, true);
 }
 
 // ── Modal helpers ─────────────────────────────────
