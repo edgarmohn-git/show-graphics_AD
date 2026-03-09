@@ -2039,6 +2039,7 @@ document.addEventListener('keydown', e => {
               <li><strong>Fit</strong> = show all (letterbox) · <strong>Fill</strong> = crop to fill</li>
               <li><strong>Clear</strong> removes the image from the slot</li>
               <li>vMix picks up changes within ~1.5 s — no reload</li>
+              <li>The URL below each slot header is clickable — click it to copy to clipboard. <strong>↗ Open</strong> opens in a new tab, <strong>📋 Copy</strong> also copies.</li>
             </ul>
           </div>
           <div class="help-section">
@@ -2047,6 +2048,7 @@ document.addEventListener('keydown', e => {
               <li>Upload a vMix layout screenshot via <strong>📤 Upload BG</strong> in the Background References section</li>
               <li>Click <strong>Set BG H / Set BG V</strong> to show it as a semi-transparent layer behind the active graphic in the slot preview</li>
               <li>Use the toggle switch and opacity slider in the slot panel to show/hide and adjust</li>
+              <li>BG images can be selected and batch-deleted like any other image</li>
               <li><em>BG references are gallery-only — never shown in vMix</em></li>
             </ul>
           </div>
@@ -2106,12 +2108,20 @@ document.addEventListener('keydown', e => {
             </ul>
           </div>
           <div class="help-section">
+            <h3>Preview &amp; enlarge</h3>
+            <ul>
+              <li>Click any tile thumbnail (all sections) to open the full preview — Image Library, Processed Images, BG References, Saved Layouts</li>
+              <li>In select mode, clicking a tile toggles the checkbox instead</li>
+              <li>The <strong>🔍</strong> button always opens the preview regardless of select mode</li>
+            </ul>
+          </div>
+          <div class="help-section">
             <h3>Select &amp; delete</h3>
             <ul>
               <li>Click <strong>☑ Select</strong> in the toolbar to enter selection mode</li>
-              <li>Click any card thumbnail to toggle selection</li>
+              <li>Click any tile to toggle its selection checkbox</li>
               <li>The <strong>floating bar at the bottom</strong> shows the count and Delete button — always reachable without scrolling</li>
-              <li>Works for images and layouts in one batch</li>
+              <li>Works for images, BG references, and layouts in one batch</li>
             </ul>
           </div>
           <div class="help-section">
