@@ -126,6 +126,19 @@ a,button{cursor:pointer}
 .big-canvas.ratio-v{aspect-ratio:9/16;max-height:60vh;width:auto;margin:0 auto}
 .big-canvas img{position:absolute;transform-origin:center center}
 
+/* ── Floating selection bar ── */
+#sel-bar{position:fixed;bottom:0;left:0;right:0;background:#1c1207;border-top:2px solid #78350f;padding:12px 20px;display:none;align-items:center;gap:12px;z-index:300;box-shadow:0 -4px 24px rgba(0,0,0,.7)}
+#sel-bar.active{display:flex}
+#sel-bar-count{color:#fcd34d;font-weight:600;font-size:.88rem;flex:1}
+/* ── Help modal ── */
+.help-modal .modal{max-width:760px}
+.help-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+@media(max-width:640px){.help-grid{grid-template-columns:1fr}}
+.help-section{margin-bottom:18px}
+.help-section h3{font-size:.78rem;font-weight:700;color:#93c5fd;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
+.help-section p,.help-section li{font-size:.82rem;color:#aaa;line-height:1.6;margin-bottom:3px}
+.help-section ul{padding-left:16px}
+.help-section code{background:#1e1e1e;color:#86efac;padding:1px 5px;border-radius:3px;font-size:.78rem}
 /* ── Section headers (collapsible) ── */
 .sec-hdr{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 4px 6px;border-top:1px solid #2a2a2a;margin-top:4px;cursor:pointer;user-select:none}
 .sec-hdr:first-child{border-top:none;margin-top:0;padding-top:4px}
@@ -186,6 +199,7 @@ a,button{cursor:pointer}
   <button class="btn btn-gray" onclick="rebuildIndex()" title="Rebuild image list from R2 (use if gallery shows empty)">⚙ Rebuild Index</button>
   <button class="btn btn-amber btn-sm" id="select-btn" onclick="toggleSelectMode()">☑ Select</button>
   <button class="btn btn-red btn-sm" id="delete-sel-btn" style="display:none" onclick="deleteSelected()">🗑 Delete (<span id="sel-count">0</span>)</button>
+  <button class="btn btn-gray btn-sm" onclick="openModal('help-modal')" title="Help">❓</button>
   <span style="color:#333;padding:0 4px">|</span>
   <input type="text" id="layout-name" placeholder="Name your layout first, then save" style="width:240px" title="Enter a name for your layout, then click 💾 Save H, Save V, or Save Both">
   <button class="btn btn-blue btn-sm" onclick="saveLayout('h')" title="Save H slot as layout">💾 Save H</button>
@@ -1447,8 +1461,9 @@ function toggleSelectMode() {
   selectMode = !selectMode;
   if (!selectMode) { selectedKeys.clear(); selectedLayouts.clear(); }
   const btn = document.getElementById('select-btn');
-  btn.textContent = selectMode ? '✕ Cancel select' : '☑ Select';
+  btn.textContent = selectMode ? '✕ Cancel' : '☑ Select';
   document.getElementById('delete-sel-btn').style.display = selectMode ? 'inline-flex' : 'none';
+  document.getElementById('sel-bar').classList.toggle('active', selectMode);
   updateSelCount();
   renderGrid();
 }
@@ -1467,7 +1482,9 @@ function toggleSelect(key, cb) {
 }
 
 function updateSelCount() {
-  document.getElementById('sel-count').textContent = selectedKeys.size + selectedLayouts.size;
+  const n = selectedKeys.size + selectedLayouts.size;
+  document.getElementById('sel-count').textContent = n;
+  document.getElementById('sel-bar-count').textContent = n === 0 ? 'Nothing selected' : `${n} item${n===1?'':'s'} selected`;
 }
 
 function toggleLayoutSelect(name, cb) {
@@ -1977,6 +1994,124 @@ document.addEventListener('keydown', e => {
     <input type="text" id="ul-tags" placeholder="e.g. custom-tag" style="width:100%;padding:8px;background:#222;border:1px solid #444;color:#fff;border-radius:6px;margin-bottom:16px;font-size:.85rem">
     <button class="btn btn-blue" style="width:100%" onclick="galleryUpload()">Upload</button>
     <div id="ul-status" style="margin-top:12px;padding:10px;border-radius:6px;font-size:.83rem;display:none"></div>
+  </div>
+</div>
+<!-- Floating selection bar -->
+<div id="sel-bar">
+  <span id="sel-bar-count">Nothing selected</span>
+  <button class="btn btn-red btn-sm" onclick="deleteSelected()">🗑 Delete selected</button>
+  <button class="btn btn-gray btn-sm" onclick="toggleSelectMode()">✕ Cancel</button>
+</div>
+
+<!-- Help Modal -->
+<div class="modal-overlay help-modal" id="help-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>❓ How Show Graphics works</h2>
+      <button class="btn btn-gray btn-sm" onclick="closeModal('help-modal')">✕ Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="help-grid">
+        <div>
+          <div class="help-section">
+            <h3>System overview</h3>
+            <p>Show Graphics is a browser-source overlay system for vMix. The operator places images on two transparent canvases — <strong>H (16:9 / 3840×2160)</strong> and <strong>V (9:16 / 2160×3840)</strong> — and vMix picks them up live via browser source, no reload needed.</p>
+          </div>
+          <div class="help-section">
+            <h3>Slot previews (top)</h3>
+            <ul>
+              <li><strong>Set H / Set V</strong> on any image card → assigns it to that slot</li>
+              <li><strong>Drag</strong> inside the preview to reposition the image</li>
+              <li><strong>Scale slider</strong> — 100% = fills canvas; double-click the number to reset</li>
+              <li><strong>Fit</strong> = show all (letterbox) · <strong>Fill</strong> = crop to fill</li>
+              <li><strong>Clear</strong> removes the image from the slot</li>
+              <li>vMix picks up changes within ~1.5 s — no reload</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>BG reference images</h3>
+            <ul>
+              <li>Upload a vMix layout screenshot via <strong>📤 Upload BG</strong> in the Background References section</li>
+              <li>Click <strong>Set BG H / Set BG V</strong> to show it as a semi-transparent layer behind the active graphic in the slot preview</li>
+              <li>Use the toggle switch and opacity slider in the slot panel to show/hide and adjust</li>
+              <li><em>BG references are gallery-only — never shown in vMix</em></li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Grid overlay</h3>
+            <ul>
+              <li><strong>◉ Grid</strong> toggle — show/hide the positioning grid</li>
+              <li>Grid fineness selector: Off / 2×2 up to 100×100 (default 20×20)</li>
+              <li><strong>Snap to grid</strong> — drag snaps to nearest grid intersection</li>
+              <li>Grid settings persist across page reloads</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>vMix setup</h3>
+            <ul>
+              <li>Add two <strong>Browser</strong> inputs in vMix</li>
+              <li><code>graphic-h.html</code> at 3840×2160 — enable Transparent Background</li>
+              <li><code>graphic-v.html</code> at 2160×3840 — enable Transparent Background</li>
+              <li>Position/scale/fit set in the gallery is reflected live</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="help-section">
+            <h3>Upload images</h3>
+            <ul>
+              <li><strong>📤 Upload</strong> button in the toolbar — modal supports single and multi-file</li>
+              <li><strong>Drag files from Finder</strong> anywhere onto the gallery — uploads immediately</li>
+              <li>If a category filter is active, it is auto-applied to dropped files</li>
+              <li>Researchers can also use the standalone <code>upload.html</code> page</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Categories</h3>
+            <ul>
+              <li>Expand <strong>Category Management</strong> to create, rename or delete categories</li>
+              <li>Assign images via the <strong>📁</strong> button on each card, or <strong>drag a card onto a category button</strong> in the filter bar</li>
+              <li>Filter the library using the <strong>All / Uncategorized / [category]</strong> buttons</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Auto-tagging by filename</h3>
+            <ul>
+              <li>In Category Management, type a keyword next to a category and press <strong>Enter</strong></li>
+              <li>Example: keyword <code>ATEM</code> under "ATEM Switchers" → any file with "ATEM" in the name gets that category automatically on upload</li>
+              <li>Multiple keywords per category, multiple categories per image</li>
+              <li>Auto-detection runs in the upload modal (chips shown pre-checked) and on window drag-and-drop</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Saved layouts</h3>
+            <ul>
+              <li>Name a layout → <strong>💾 Save H</strong>, <strong>💾 Save V</strong> or <strong>💾 Save Both</strong></li>
+              <li><strong>↩ H / ↩ V / ↩ Both</strong> recalls the layout to the slot(s)</li>
+              <li>Layouts store exact position, scale and fit — shared across all operators</li>
+              <li>Drag-to-reorder layout cards</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Select &amp; delete</h3>
+            <ul>
+              <li>Click <strong>☑ Select</strong> in the toolbar to enter selection mode</li>
+              <li>Click any card thumbnail to toggle selection</li>
+              <li>The <strong>floating bar at the bottom</strong> shows the count and Delete button — always reachable without scrolling</li>
+              <li>Works for images and layouts in one batch</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Edit images</h3>
+            <ul>
+              <li><strong>✏️</strong> opens the edit modal: crop, trim sides, background knock-out</li>
+              <li><strong>💾 Save as new image</strong> uploads the result tagged <code>edited</code> → appears in Processed Images</li>
+              <li>Original is never overwritten</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 </body>
