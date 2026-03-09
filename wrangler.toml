@@ -11,4 +11,4 @@ kv_namespaces = [
 ]
 
 [vars]
-ALLOWED_ORIGIN = "https://edgarmohn-git.github.io"
+ALLOWED_ORIGIN = "https://adp-lab.github.io"

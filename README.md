@@ -9,12 +9,12 @@ Researchers upload images remotely. Operator places them in the gallery. vMix di
 
 | Page | URL | Who |
 |---|---|---|
-| Upload | https://edgarmohn-git.github.io/show-graphics_AD/upload.html | Researcher (or use Upload button in gallery) |
-| Gallery / Operator | https://edgarmohn-git.github.io/show-graphics_AD/gallery.html | Operator |
-| Display H (16:9) | https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html | vMix browser source |
-| Display V (9:16) | https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html | vMix browser source |
-| QR H (16:9) | https://edgarmohn-git.github.io/show-graphics_AD/qr-h.html?url=&size= | vMix browser source |
-| QR V (9:16) | https://edgarmohn-git.github.io/show-graphics_AD/qr-v.html?url=&size= | vMix browser source |
+| Upload | https://adp-lab.github.io/show-graphics_AD/upload.html | Researcher (or use Upload button in gallery) |
+| Gallery / Operator | https://adp-lab.github.io/show-graphics_AD/gallery.html | Operator |
+| Display H (16:9) | https://adp-lab.github.io/show-graphics_AD/graphic-h.html | vMix browser source |
+| Display V (9:16) | https://adp-lab.github.io/show-graphics_AD/graphic-v.html | vMix browser source |
+| QR H (16:9) | https://adp-lab.github.io/show-graphics_AD/qr-h.html?url=&size= | vMix browser source |
+| QR V (9:16) | https://adp-lab.github.io/show-graphics_AD/qr-v.html?url=&size= | vMix browser source |
 
 ---
 
@@ -97,8 +97,8 @@ vMix → graphic-h.html / graphic-v.html → polls KV every 1.5s → displays li
 
 | Input | URL | Size |
 |---|---|---|
-| Graphic H | `https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html` | 3840 × 2160 |
-| Graphic V | `https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html` | 2160 × 3840 |
+| Graphic H | `https://adp-lab.github.io/show-graphics_AD/graphic-h.html` | 3840 × 2160 |
+| Graphic V | `https://adp-lab.github.io/show-graphics_AD/graphic-v.html` | 2160 × 3840 |
 
 - Enable **transparent background** in vMix browser source settings
 - Pages poll every 1.5s — no reload needed when operator switches images
@@ -178,7 +178,7 @@ Images live in Cloudflare R2 — permanent object storage. No expiry, no auto-pu
 ## Security notes
 
 - API key stored in Cloudflare Secrets only — never in any file or commit
-- CORS restricted to `https://edgarmohn-git.github.io`
+- CORS restricted to `https://adp-lab.github.io`
 - `/go` with `?apikey=` in URL: acceptable for private show use; key visible in logs. For stricter use, send key as `X-API-Key` header from vMix VB.NET script instead
 - After each show: rotate key with `npx wrangler secret put API_KEY`
 
