@@ -1,7 +1,7 @@
 # Show Graphics AD
 
 Browser source graphics system for dual-format live production (16:9 + 9:16, 4K/30).
-Researchers upload images remotely. Operator places them in the gallery. vMix displays live via browser source — no reload needed.
+Operator uploads and places images via the gallery. vMix displays live via browser source — no reload needed.
 
 ---
 
@@ -9,8 +9,7 @@ Researchers upload images remotely. Operator places them in the gallery. vMix di
 
 | Page | URL | Who |
 |---|---|---|
-| Upload | https://adp-lab.github.io/show-graphics_AD/upload.html | Researcher (or use Upload button in gallery) |
-| Gallery / Operator | https://adp-lab.github.io/show-graphics_AD/gallery.html | Operator |
+| Operator Interface | https://adp-lab.github.io/show-graphics_AD/gallery.html | Operator |
 | Display H (16:9) | https://adp-lab.github.io/show-graphics_AD/graphic-h.html | vMix browser source |
 | Display V (9:16) | https://adp-lab.github.io/show-graphics_AD/graphic-v.html | vMix browser source |
 | QR H (16:9) | https://adp-lab.github.io/show-graphics_AD/qr-h.html?url=&size= | vMix browser source |
@@ -198,7 +197,7 @@ npx wrangler tail                               # Live Worker logs
 
 ## Project status
 
-- ✅ Upload (modal in gallery + standalone upload.html), gallery, display pages H+V, QR pages
+- ✅ Upload (modal in gallery toolbar), display pages H+V, QR pages
 - ✅ Worker: R2 storage, KV state, authenticated API, /go vMix trigger endpoint
 - ✅ Drag-to-place, scale, fit modes — gallery preview = display page (pixel-accurate)
 - ✅ Crop, trim sides, color knock-out (hard + soft edges)
