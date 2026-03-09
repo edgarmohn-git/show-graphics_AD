@@ -211,7 +211,12 @@ a,button{cursor:pointer}
 <!-- Slot previews -->
 <div class="slots">
   <div class="slot-panel">
-    <h3>🔵 Slot H — Horizontal <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a><button onclick="copyUrl('h')" title="Copy URL" style="background:none;border:none;color:#444;cursor:pointer;font-size:.75rem;margin-left:4px;padding:0" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#444'">📋</button></h3>
+    <h3>🔵 Slot H — Horizontal</h3>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+      <code onclick="copyUrl('h')" title="Click to copy URL" style="font-size:.68rem;color:#555;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;padding:3px 7px;cursor:pointer;user-select:all;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#555'">https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html</code>
+      <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-h.html" target="_blank" class="btn btn-gray btn-sm" style="padding:4px 9px;text-decoration:none;flex-shrink:0" title="Open in new tab">↗ Open</a>
+      <button onclick="copyUrl('h')" class="btn btn-blue btn-sm" style="padding:4px 9px;flex-shrink:0" title="Copy URL to clipboard">📋 Copy</button>
+    </div>
     <div class="canvas-wrap ratio-h" id="preview-h">
       <div class="canvas-empty">empty</div>
     </div>
@@ -237,7 +242,12 @@ a,button{cursor:pointer}
     </div>
   </div>
   <div class="slot-panel">
-    <h3>🟣 Slot V — Vertical <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a><button onclick="copyUrl('v')" title="Copy URL" style="background:none;border:none;color:#444;cursor:pointer;font-size:.75rem;margin-left:4px;padding:0" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#444'">📋</button></h3>
+    <h3>🟣 Slot V — Vertical</h3>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+      <code onclick="copyUrl('v')" title="Click to copy URL" style="font-size:.68rem;color:#555;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;padding:3px 7px;cursor:pointer;user-select:all;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#555'">https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html</code>
+      <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html" target="_blank" class="btn btn-gray btn-sm" style="padding:4px 9px;text-decoration:none;flex-shrink:0" title="Open in new tab">↗ Open</a>
+      <button onclick="copyUrl('v')" class="btn btn-blue btn-sm" style="padding:4px 9px;flex-shrink:0" title="Copy URL to clipboard">📋 Copy</button>
+    </div>
     <div class="canvas-wrap ratio-v" id="preview-v">
       <div class="canvas-empty">empty</div>
     </div>
@@ -1166,17 +1176,20 @@ function renderGrid() {
     const sub = document.createElement('div'); sub.className = 'grid-sub'; secBg.appendChild(sub);
     bgImages.forEach(img => {
       const isH = bgRef.h?.key === img.key, isV = bgRef.v?.key === img.key;
+      const isPicked = selectedKeys.has(img.key);
       const card = document.createElement('div');
-      card.className = 'card' + (isH && isV ? ' sel-hv' : isH ? ' sel-h' : isV ? ' sel-v' : '');
+      card.className = 'card' + (isPicked ? ' pick-selected' : isH && isV ? ' sel-hv' : isH ? ' sel-h' : isV ? ' sel-v' : '');
       const safeKey = img.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       const safeName = img.name.replace(/'/g,"\\'");
       card.innerHTML = `
-        <img class="bg-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy">
+        <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${safeKey}',this)">
+        <img class="bg-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openPreview('${safeKey}','${safeName}')}">
         <div class="card-body">
           <div class="card-name">${img.name}</div>
           <div class="card-actions">
             <button class="btn btn-blue btn-sm" onclick="setBgForSlot('h','${safeKey}','${safeName}')">Set BG H</button>
             <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="setBgForSlot('v','${safeKey}','${safeName}')">Set BG V</button>
+            <button class="btn btn-gray btn-sm" onclick="openPreview('${safeKey}','${safeName}')">&#128269;</button>
             <button class="btn btn-red btn-sm" onclick="deleteImage('${safeKey}')">&#128465;</button>
           </div>
         </div>`;
@@ -1258,7 +1271,7 @@ function renderGrid() {
       const safeName = img.name.replace(/'/g,"\\'");
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${safeKey}',this)">
-        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}">
+        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openPreview('${safeKey}','${safeName}')}">
         <div class="card-body">
           <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
           ${catChipsHtml(safeKey, img.tags)}
@@ -1294,7 +1307,7 @@ function renderGrid() {
       const safeName = img.name.replace(/'/g,"\\'");
       card.innerHTML = `
         <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${safeKey}',this)">
-        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}">
+        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openPreview('${safeKey}','${safeName}')}">
         <div class="card-body">
           <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
           ${catChipsHtml(safeKey, img.tags)}
