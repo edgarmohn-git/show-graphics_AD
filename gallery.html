@@ -53,7 +53,7 @@ a,button{cursor:pointer}
 
 /* ── Grid ── */
 .grid-wrap{padding:12px 16px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.grid,.grid-sub{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .card{position:relative;background:#1a1a1a;border-radius:7px;overflow:hidden;border:2px solid transparent;transition:border-color .2s;z-index:1}
 /* ── Thumb zoom lightbox ── */
 #thumb-zoom{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:12px}
@@ -125,6 +125,52 @@ a,button{cursor:pointer}
 .big-canvas.ratio-h{aspect-ratio:16/9;width:100%}
 .big-canvas.ratio-v{aspect-ratio:9/16;max-height:60vh;width:auto;margin:0 auto}
 .big-canvas img{position:absolute;transform-origin:center center}
+
+/* ── Section headers (collapsible) ── */
+.sec-hdr{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 4px 6px;border-top:1px solid #2a2a2a;margin-top:4px;cursor:pointer;user-select:none}
+.sec-hdr:first-child{border-top:none;margin-top:0;padding-top:4px}
+.sec-hdr .chevron{font-size:.7rem;color:#555;transition:transform .2s;display:inline-block;width:12px;text-align:center}
+.sec-hdr.expanded .chevron{transform:rotate(90deg)}
+.sec-hdr .sec-label{font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.1em;flex:1}
+.sec-hdr .sec-count{font-size:.68rem;color:#555;font-weight:400}
+.sec-body{grid-column:1/-1}
+.sec-body.hidden{display:none}
+.grid-sub{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:4px 0}
+/* ── BG section larger thumbs ── */
+.bg-thumb{width:100%;height:180px;object-fit:contain;display:block;background:#2a2a2a}
+/* ── Category filter bar ── */
+.cat-filter-row{grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 4px 4px}
+.cat-btn{padding:4px 12px;border:1px solid #2a2a2a;border-radius:12px;background:transparent;color:#666;font-size:.73rem;cursor:pointer;transition:all .15s}
+.cat-btn:hover{border-color:#555;color:#ccc}
+.cat-btn.active{background:#1e3a5f;border-color:#2563eb;color:#93c5fd;font-weight:600}
+/* ── Category chips on cards ── */
+.cat-chips{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px;min-height:0}
+.cat-chip{display:inline-flex;align-items:center;gap:2px;background:#1e3a5f;color:#93c5fd;font-size:.62rem;padding:2px 6px;border-radius:8px;line-height:1.4}
+.cat-chip .cx{cursor:pointer;opacity:.5;font-weight:700;margin-left:2px}
+.cat-chip .cx:hover{opacity:1}
+/* ── Toggle switch (BG on/off) ── */
+.tgl-wrap{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.75rem;color:#555;user-select:none;line-height:1}
+.tgl-track{width:28px;height:16px;background:#2a2a2a;border-radius:8px;position:relative;transition:background .2s;flex-shrink:0;border:1px solid #333}
+.tgl-track::after{content:'';position:absolute;left:2px;top:2px;width:10px;height:10px;background:#555;border-radius:50%;transition:transform .2s,background .2s}
+.tgl-on .tgl-track{background:#1d4ed8;border-color:#2563eb}
+.tgl-on .tgl-track::after{transform:translateX(12px);background:#fff}
+/* ── BG slot controls (in slot panel) ── */
+.bg-slot-row{display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap}
+.bg-name-lbl{font-size:.7rem;color:#444;font-style:italic;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+/* ── Category management ── */
+.cat-mgmt-wrap{padding:6px 0 4px}
+.cat-mgmt-add{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.cat-mgmt-add input{padding:4px 8px;background:#1a1a1a;border:1px solid #2a2a2a;color:#fff;border-radius:4px;font-size:.78rem;width:150px}
+.cat-item-row{display:flex;flex-wrap:wrap;gap:5px}
+.cat-item{display:inline-flex;align-items:center;gap:4px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;padding:3px 8px;font-size:.75rem;color:#aaa}
+.cat-item button{background:none;border:none;color:#444;cursor:pointer;padding:0;font-size:.75rem;line-height:1}
+.cat-item button:hover{color:#ccc}
+/* ── Category picker (per card) ── */
+.cat-picker{display:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:5px;padding:6px 8px;margin-top:4px;font-size:.75rem}
+.cat-picker.open{display:block}
+.cat-picker label{display:flex;align-items:center;gap:5px;padding:2px 0;cursor:pointer;color:#aaa}
+.cat-picker label:hover{color:#fff}
+.cat-picker label input{accent-color:#2563eb}
 </style>
 </head>
 <body>
@@ -167,12 +213,13 @@ a,button{cursor:pointer}
       </select>
       <button class="btn btn-red btn-sm" onclick="clearSlot('h')">Clear</button>
     </div>
-    <input type="file" id="bg-file-h" accept="image/*" style="display:none" onchange="loadBgRef('h',this)">
-    <div class="bg-ref-controls">
-      <button class="btn btn-gray btn-sm" onclick="document.getElementById('bg-file-h').click()" title="Load a vMix layout screenshot as position reference (gallery only — not sent to vMix)">🖼 BG ref</button>
-      <span>Opacity</span>
-      <input type="range" id="bg-opacity-h" min="5" max="80" value="40" oninput="setBgOpacity('h',this.value)">
-      <button class="btn btn-gray btn-sm" id="bg-clear-h" onclick="clearBgRef('h')" style="display:none" title="Remove reference image">✕</button>
+    <div class="bg-slot-row">
+      <div class="tgl-wrap" id="bg-tgl-h" onclick="toggleBgEnabled('h')" title="Show/hide background reference">
+        <div class="tgl-track"></div>
+        <span>BG ref</span>
+      </div>
+      <input type="range" id="bg-opacity-h" min="5" max="80" value="40" oninput="setBgOpacity('h',this.value)" title="Opacity">
+      <span class="bg-name-lbl" id="bg-name-h">—</span>
     </div>
   </div>
   <div class="slot-panel">
@@ -192,12 +239,13 @@ a,button{cursor:pointer}
       </select>
       <button class="btn btn-red btn-sm" onclick="clearSlot('v')">Clear</button>
     </div>
-    <input type="file" id="bg-file-v" accept="image/*" style="display:none" onchange="loadBgRef('v',this)">
-    <div class="bg-ref-controls">
-      <button class="btn btn-gray btn-sm" onclick="document.getElementById('bg-file-v').click()" title="Load a vMix layout screenshot as position reference (gallery only — not sent to vMix)">🖼 BG ref</button>
-      <span>Opacity</span>
-      <input type="range" id="bg-opacity-v" min="5" max="80" value="40" oninput="setBgOpacity('v',this.value)">
-      <button class="btn btn-gray btn-sm" id="bg-clear-v" onclick="clearBgRef('v')" style="display:none" title="Remove reference image">✕</button>
+    <div class="bg-slot-row">
+      <div class="tgl-wrap" id="bg-tgl-v" onclick="toggleBgEnabled('v')" title="Show/hide background reference">
+        <div class="tgl-track"></div>
+        <span>BG ref</span>
+      </div>
+      <input type="range" id="bg-opacity-v" min="5" max="80" value="40" oninput="setBgOpacity('v',this.value)" title="Opacity">
+      <span class="bg-name-lbl" id="bg-name-v">—</span>
     </div>
   </div>
 </div>
@@ -340,7 +388,10 @@ let selectedKeys = new Set();
 let selectedLayouts = new Set();
 let layoutOrder = []; // ordered array of layout names
 let drag = null;      // {type: 'layout'|'original'|'edited', idx: number}
-let bgRef = { h: null, v: null }; // { dataUrl, opacity } — localStorage only, never sent to server
+let bgRef = { h: null, v: null }; // { key, name, opacity, enabled } — key references R2; settings in localStorage
+let categories = [];              // array of category name strings (from KV)
+let currentCategoryFilter = 'all'; // 'all' | 'uncategorized' | category name
+let sectionsState = {};           // section id → true=collapsed
 
 // ── Init ──────────────────────────────────────────
 window.onload = () => {
@@ -364,12 +415,13 @@ window.onload = () => {
     document.getElementById('snap-grid').checked = snap;
     document.getElementById('grid-toggle').textContent = gridVisible ? '◉ Grid' : '○ Grid';
   } catch(e) {}
-  if (apiKey()) { loadGallery(); loadLayouts(); }
+  if (apiKey()) { loadGallery(); loadLayouts(); loadCategories(); }
   else renderGrid(); // show "enter key" placeholder
   pollActive();
   setInterval(pollActive, 3000);
   updateGridOverlay();
   loadBgRefs();
+  loadSectionsState();
 };
 
 async function saveKey() {
@@ -382,7 +434,7 @@ async function saveKey() {
       const imgs = await r.json();
       images = imgs;
       setStatus(`Key accepted — ${imgs.length} image(s) found.`, true);
-      await loadLayouts();
+      await Promise.all([loadLayouts(), loadCategories()]);
       renderGrid();
     } else {
       sessionStorage.removeItem('sg_api_key');
@@ -736,34 +788,53 @@ function loadBgRefs() {
     ['h','v'].forEach(slot => {
       if (bgRef[slot]) {
         renderBgRef(slot);
-        document.getElementById(`bg-opacity-${slot}`).value = bgRef[slot].opacity;
-        document.getElementById(`bg-clear-${slot}`).style.display = '';
+        document.getElementById(`bg-opacity-${slot}`).value = bgRef[slot].opacity ?? 40;
+        updateBgSlotUI(slot);
       }
     });
   } catch(e) {}
 }
 
-function loadBgRef(slot, input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    bgRef[slot] = { dataUrl: e.target.result, opacity: parseInt(document.getElementById(`bg-opacity-${slot}`).value) };
-    saveBgRefs();
-    renderBgRef(slot);
-    document.getElementById(`bg-clear-${slot}`).style.display = '';
-    input.value = '';
-  };
-  reader.readAsDataURL(file);
+function setBgForSlot(slot, key, name) {
+  bgRef[slot] = { key, name, opacity: bgRef[slot]?.opacity ?? 40, enabled: true };
+  saveBgRefs();
+  renderBgRef(slot);
+  updateBgSlotUI(slot);
+  setStatus(`BG ${slot.toUpperCase()} set: ${name}`, true);
+}
+
+function toggleBgEnabled(slot) {
+  if (!bgRef[slot]) return;
+  bgRef[slot].enabled = !bgRef[slot].enabled;
+  saveBgRefs();
+  renderBgRef(slot);
+  updateBgSlotUI(slot);
+}
+
+function updateBgSlotUI(slot) {
+  const ref = bgRef[slot];
+  const tgl = document.getElementById(`bg-tgl-${slot}`);
+  const nameLbl = document.getElementById(`bg-name-${slot}`);
+  if (ref?.key) {
+    if (tgl) tgl.classList.toggle('tgl-on', !!ref.enabled);
+    if (nameLbl) nameLbl.textContent = ref.name || ref.key;
+  } else {
+    if (tgl) tgl.classList.remove('tgl-on');
+    if (nameLbl) nameLbl.textContent = '—';
+  }
 }
 
 function renderBgRef(slot) {
   const wrap = document.getElementById(`preview-${slot}`);
+  if (!wrap) return;
   let img = wrap.querySelector('img.bg-ref-img');
-  if (!bgRef[slot]) { if (img) img.remove(); return; }
+  if (!bgRef[slot]?.key || !bgRef[slot].enabled) { if (img) img.remove(); return; }
   if (!img) { img = document.createElement('img'); img.className = 'bg-ref-img'; wrap.insertBefore(img, wrap.firstChild); }
-  img.src = bgRef[slot].dataUrl;
-  img.style.opacity = bgRef[slot].opacity / 100;
+  const url = `${WORKER}/img/${encodeURIComponent(bgRef[slot].key)}`;
+  if (img.getAttribute('data-bg-key') !== bgRef[slot].key) {
+    img.src = url; img.setAttribute('data-bg-key', bgRef[slot].key);
+  }
+  img.style.opacity = (bgRef[slot].opacity ?? 40) / 100;
 }
 
 function setBgOpacity(slot, val) {
@@ -774,12 +845,102 @@ function setBgOpacity(slot, val) {
   if (img) img.style.opacity = val / 100;
 }
 
-function clearBgRef(slot) {
-  bgRef[slot] = null;
-  saveBgRefs();
-  renderBgRef(slot);
-  document.getElementById(`bg-clear-${slot}`).style.display = 'none';
-  document.getElementById(`bg-file-${slot}`).value = '';
+// ── Section collapse ───────────────────────────────
+function loadSectionsState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('sg_sections') || 'null');
+    sectionsState = saved || { backgrounds: true, catmgmt: true };
+  } catch(e) { sectionsState = { backgrounds: true, catmgmt: true }; }
+}
+
+function saveSectionsState() {
+  try { localStorage.setItem('sg_sections', JSON.stringify(sectionsState)); } catch(e) {}
+}
+
+function toggleSection(key) {
+  sectionsState[key] = !sectionsState[key];
+  saveSectionsState();
+  const body = document.getElementById(`sec-${key}`);
+  const hdr = document.getElementById(`sechdr-${key}`);
+  if (body) body.classList.toggle('hidden', !!sectionsState[key]);
+  if (hdr) hdr.classList.toggle('expanded', !sectionsState[key]);
+}
+
+// ── Categories ────────────────────────────────────
+async function loadCategories() {
+  try {
+    const r = await fetch(`${WORKER}/categories`, { headers: { 'X-API-Key': apiKey() } });
+    if (r.ok) categories = await r.json(); else categories = [];
+  } catch(e) { categories = []; }
+  renderGrid();
+}
+
+async function saveCategories() {
+  try {
+    await fetch(`${WORKER}/categories`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body: JSON.stringify(categories)
+    });
+  } catch(e) {}
+}
+
+async function addCategory(name) {
+  const n = name.trim();
+  if (!n || categories.includes(n)) return;
+  categories.push(n);
+  categories.sort((a, b) => a.localeCompare(b));
+  await saveCategories();
+  renderGrid();
+}
+
+async function deleteCategory(name) {
+  if (!confirm(`Delete category "${name}"? Images tagged with it will keep the tag but the category will no longer appear in filters.`)) return;
+  categories = categories.filter(c => c !== name);
+  await saveCategories();
+  if (currentCategoryFilter === name) currentCategoryFilter = 'all';
+  renderGrid();
+}
+
+async function renameCategory(oldName) {
+  const newName = prompt('Rename category:', oldName);
+  if (!newName || newName.trim() === oldName) return;
+  const n = newName.trim();
+  if (categories.includes(n)) { alert(`Category "${n}" already exists.`); return; }
+  categories = categories.map(c => c === oldName ? n : c).sort((a, b) => a.localeCompare(b));
+  // Rename tag on all images
+  images.forEach(img => {
+    if ((img.tags||[]).includes(oldName)) {
+      img.tags = img.tags.map(t => t === oldName ? n : t);
+      updateImageTags(img.key, img.tags);
+    }
+  });
+  await saveCategories();
+  if (currentCategoryFilter === oldName) currentCategoryFilter = n;
+  renderGrid();
+  setStatus(`Category renamed to "${n}".`, true);
+}
+
+async function updateImageTags(key, tags) {
+  try {
+    await fetch(`${WORKER}/tags/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body: JSON.stringify({ tags })
+    });
+  } catch(e) {}
+}
+
+async function toggleImageCategory(key, catName, add) {
+  const img = images.find(i => i.key === key);
+  if (!img) return;
+  const systemTags = ['edited', 'background'];
+  let tags = (img.tags || []);
+  if (add) { if (!tags.includes(catName)) tags = [...tags, catName]; }
+  else { tags = tags.filter(t => t !== catName); }
+  img.tags = tags;
+  await updateImageTags(key, tags);
+  renderGrid();
 }
 
 // ── Drag helpers ──────────────────────────────────
@@ -849,25 +1010,69 @@ function renderGrid() {
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
 
-  // ── Saved layout cards ──
+  const systemTags = ['edited', 'background'];
+  const bgImages   = images.filter(i => (i.tags||[]).includes('background'));
+  const editedImgs = images.filter(i => (i.tags||[]).includes('edited') && !(i.tags||[]).includes('background'));
+  const originals  = images.filter(i => !(i.tags||[]).includes('edited') && !(i.tags||[]).includes('background'));
+
+  // helper: filter by search + category
+  function applyFilter(arr) {
+    return arr.filter(img => {
+      if (q && !img.name.toLowerCase().includes(q) && !(img.tags||[]).some(t=>t.toLowerCase().includes(q))) return false;
+      if (currentCategoryFilter === 'all') return true;
+      if (currentCategoryFilter === 'uncategorized') {
+        const userTags = (img.tags||[]).filter(t => !systemTags.includes(t));
+        return userTags.length === 0;
+      }
+      return (img.tags||[]).includes(currentCategoryFilter);
+    });
+  }
+
+  // helper: make section header + body
+  function makeSection(key, label, count, defaultCollapsed) {
+    const collapsed = sectionsState[key] ?? defaultCollapsed;
+    const hdr = document.createElement('div');
+    hdr.className = 'sec-hdr' + (!collapsed ? ' expanded' : '');
+    hdr.id = `sechdr-${key}`;
+    hdr.onclick = () => toggleSection(key);
+    hdr.innerHTML = `<span class="chevron">&#9654;</span><span class="sec-label">${label}</span><span class="sec-count">${count !== undefined ? '('+count+')' : ''}</span>`;
+    grid.appendChild(hdr);
+    const body = document.createElement('div');
+    body.className = 'sec-body' + (collapsed ? ' hidden' : '');
+    body.id = `sec-${key}`;
+    grid.appendChild(body);
+    return body;
+  }
+
+  // helper: card category chips + picker
+  function catChipsHtml(key, tags) {
+    const userCats = (tags||[]).filter(t => !systemTags.includes(t) && categories.includes(t));
+    const chips = userCats.map(c =>
+      `<span class="cat-chip">${c}<span class="cx" onclick="event.stopPropagation();toggleImageCategory('${key}','${c}',false)">&#10005;</span></span>`
+    ).join('');
+    const pickerId = `picker-${key.replace(/[^a-z0-9]/gi,'_')}`;
+    const checkboxes = categories.map(c => {
+      const checked = (tags||[]).includes(c) ? 'checked' : '';
+      return `<label><input type="checkbox" ${checked} onchange="toggleImageCategory('${key}','${c}',this.checked)">${c}</label>`;
+    }).join('');
+    const pickerHtml = categories.length ? `
+      <div class="cat-picker" id="${pickerId}">${checkboxes}</div>` : '';
+    return `
+      <div class="cat-chips">${chips}</div>
+      ${categories.length ? `<button class="btn btn-gray btn-sm" style="padding:2px 7px;font-size:.7rem" onclick="event.stopPropagation();const p=document.getElementById('${pickerId}');p.classList.toggle('open')">&#128193;</button>` : ''}
+      ${pickerHtml}`;
+  }
+
+  // ── Saved Layouts ──────────────────────────────────
   const layoutNames = layoutOrder.filter(n => n in layouts);
-  {
-    const lbl = document.createElement('div');
-    lbl.className = 'grid-section';
-    lbl.textContent = 'Saved Layouts';
-    grid.appendChild(lbl);
-  }
+  const secLayouts = makeSection('layouts', 'Saved Layouts', layoutNames.length, false);
   if (!layoutNames.length) {
-    const ph = document.createElement('div');
-    ph.className = 'grid-section-empty';
-    ph.textContent = 'No layouts saved yet — name a layout above and click 💾 Save H, Save V or Save Both.';
-    grid.appendChild(ph);
-  }
-  if (layoutNames.length) {
+    secLayouts.innerHTML = '<div class="grid-section-empty" style="padding:10px 4px;font-style:italic;font-size:.78rem;color:#444">No layouts saved yet — name a layout above and click &#128190;.</div>';
+  } else {
+    const sub = document.createElement('div'); sub.className = 'grid-sub'; secLayouts.appendChild(sub);
     layoutNames.forEach(name => {
       const layout = layouts[name];
       const safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const subtitle = [layout.h ? 'H: '+layout.h.name : '', layout.v ? 'V: '+layout.v.name : ''].filter(Boolean).join(' · ');
       const card = document.createElement('div');
       card.className = 'card layout-card';
       const isLayoutPicked = selectedLayouts.has(name);
@@ -877,98 +1082,171 @@ function renderGrid() {
         <div class="card-body">
           <div class="card-name">${name}</div>
           <div class="card-actions">
-            <button class="btn btn-blue btn-sm" ${!layout.h ? 'disabled title="No H saved in this layout"' : `onclick="recallLayoutToSlot('${safeName}','h')"`}>↩ H</button>
-            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" ${!layout.v ? 'disabled title="No V saved in this layout"' : `onclick="recallLayoutToSlot('${safeName}','v')"`}>↩ V</button>
-            <button class="btn btn-green btn-sm" ${!(layout.h && layout.v) ? 'disabled title="Needs both H and V saved"' : `onclick="recallLayoutToSlot('${safeName}','both')"`}>↩ Both</button>
-            <button class="btn btn-gray btn-sm" onclick="openLayoutPreview('${safeName}')" title="Preview layout">🔍</button>
-            <button class="btn btn-gray btn-sm" onclick="renameLayout('${safeName}')" title="Rename layout">✏️</button>
-            <button class="btn btn-red btn-sm" onclick="deleteLayoutCard('${safeName}')">🗑</button>
+            <button class="btn btn-blue btn-sm" ${!layout.h ? 'disabled title="No H saved"' : `onclick="recallLayoutToSlot('${safeName}','h')"`}>&#8617; H</button>
+            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" ${!layout.v ? 'disabled title="No V saved"' : `onclick="recallLayoutToSlot('${safeName}','v')"`}>&#8617; V</button>
+            <button class="btn btn-green btn-sm" ${!(layout.h && layout.v) ? 'disabled title="Needs both H and V"' : `onclick="recallLayoutToSlot('${safeName}','both')"`}>&#8617; Both</button>
+            <button class="btn btn-gray btn-sm" onclick="openLayoutPreview('${safeName}')" title="Preview">&#128269;</button>
+            <button class="btn btn-gray btn-sm" onclick="renameLayout('${safeName}')">&#9999;&#65039;</button>
+            <button class="btn btn-red btn-sm" onclick="deleteLayoutCard('${safeName}')">&#128465;</button>
             <span class="layout-flag">LAYOUT</span>
           </div>
         </div>`;
-      grid.appendChild(card);
+      sub.appendChild(card);
       addDragHandlers(card, 'layout', layoutNames.indexOf(name));
     });
   }
 
-  // ── Split images ──
-  const allFiltered = images.filter(img =>
-    !q || img.name.toLowerCase().includes(q) || (img.tags||[]).some(t=>t.toLowerCase().includes(q))
-  );
-  const editedImgs = allFiltered.filter(img => (img.tags||[]).includes('edited'));
-  const originals  = allFiltered.filter(img => !(img.tags||[]).includes('edited'));
+  // ── Background References ──────────────────────────
+  const secBg = makeSection('backgrounds', 'Background References', bgImages.length, true);
+  const bgUploadRow = document.createElement('div');
+  bgUploadRow.style.cssText = 'padding:6px 0;display:flex;gap:8px;align-items:center';
+  bgUploadRow.innerHTML = `<button class="btn btn-gray btn-sm" onclick="openBgUpload()" title="Upload a vMix layout screenshot as reference background">&#128228; Upload BG</button><span style="font-size:.72rem;color:#444">Select an image below to set as BG reference for H or V slot preview</span>`;
+  secBg.appendChild(bgUploadRow);
+  if (!bgImages.length) {
+    const ph = document.createElement('div');
+    ph.style.cssText = 'font-size:.78rem;color:#444;padding:4px;font-style:italic';
+    ph.textContent = 'No background reference images uploaded yet.';
+    secBg.appendChild(ph);
+  } else {
+    const sub = document.createElement('div'); sub.className = 'grid-sub'; secBg.appendChild(sub);
+    bgImages.forEach(img => {
+      const isH = bgRef.h?.key === img.key, isV = bgRef.v?.key === img.key;
+      const card = document.createElement('div');
+      card.className = 'card' + (isH && isV ? ' sel-hv' : isH ? ' sel-h' : isV ? ' sel-v' : '');
+      const safeKey = img.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeName = img.name.replace(/'/g,"\\'");
+      card.innerHTML = `
+        <img class="bg-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy">
+        <div class="card-body">
+          <div class="card-name">${img.name}</div>
+          <div class="card-actions">
+            <button class="btn btn-blue btn-sm" onclick="setBgForSlot('h','${safeKey}','${safeName}')">Set BG H</button>
+            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="setBgForSlot('v','${safeKey}','${safeName}')">Set BG V</button>
+            <button class="btn btn-red btn-sm" onclick="deleteImage('${safeKey}')">&#128465;</button>
+          </div>
+        </div>`;
+      sub.appendChild(card);
+    });
+  }
 
-  // ── Processed images (edited) — shown under Saved Layouts ──
-  if (editedImgs.length) {
-    const lbl = document.createElement('div');
-    lbl.className = 'grid-section';
-    lbl.textContent = 'Processed Images';
-    grid.appendChild(lbl);
-    editedImgs.forEach((img, idx) => {
+  // ── Category Management ────────────────────────────
+  const secCat = makeSection('catmgmt', 'Category Management', categories.length, true);
+  const catWrap = document.createElement('div'); catWrap.className = 'cat-mgmt-wrap'; secCat.appendChild(catWrap);
+  catWrap.innerHTML = `
+    <div class="cat-mgmt-add">
+      <input type="text" id="new-cat-input" placeholder="New category name&hellip;" onkeydown="if(event.key==='Enter')addCategoryFromInput()">
+      <button class="btn btn-blue btn-sm" onclick="addCategoryFromInput()">+ Add</button>
+    </div>
+    <div class="cat-item-row">${categories.length ? categories.map(c => {
+      const sc = c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<div class="cat-item">${c}<button onclick="renameCategory('${sc}')" title="Rename">&#9999;&#65039;</button><button onclick="deleteCategory('${sc}')" title="Delete">&#128465;</button></div>`;
+    }).join('') : '<span style="font-size:.75rem;color:#444;font-style:italic">No categories yet.</span>'}</div>`;
+
+  // ── Category filter bar ────────────────────────────
+  const filterRow = document.createElement('div'); filterRow.className = 'cat-filter-row'; grid.appendChild(filterRow);
+  const sortedCats = [...categories].sort((a,b) => a.localeCompare(b));
+  filterRow.innerHTML = `<span style="font-size:.72rem;color:#555">Filter:</span>
+    <button class="cat-btn${currentCategoryFilter==='all'?' active':''}" onclick="setCategoryFilter('all')">All</button>
+    <button class="cat-btn${currentCategoryFilter==='uncategorized'?' active':''}" onclick="setCategoryFilter('uncategorized')">Uncategorized</button>
+    ${sortedCats.map(c => {
+      const sc = c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<button class="cat-btn${currentCategoryFilter===c?' active':''}" onclick="setCategoryFilter('${sc}')">${c}</button>`;
+    }).join('')}`;
+
+  // ── Processed Images ───────────────────────────────
+  const filteredEdited = applyFilter(editedImgs);
+  const secEdited = makeSection('processed', 'Processed Images', filteredEdited.length, false);
+  if (!filteredEdited.length) {
+    const ph = document.createElement('div'); ph.className = 'grid-section-empty'; ph.style.cssText = 'padding:10px 4px;font-style:italic;font-size:.78rem;color:#444';
+    ph.textContent = editedImgs.length ? 'No processed images in this category.' : 'No processed images yet.';
+    secEdited.appendChild(ph);
+  } else {
+    const sub = document.createElement('div'); sub.className = 'grid-sub'; secEdited.appendChild(sub);
+    filteredEdited.forEach((img, idx) => {
       const isH = activeH?.key === img.key, isV = activeV?.key === img.key;
       const isPicked = selectedKeys.has(img.key);
       const cls = ['card','edited-card', isPicked?'pick-selected':isH&&isV?'sel-hv':isH?'sel-h':isV?'sel-v':''].filter(Boolean).join(' ');
-      const card = document.createElement('div');
-      card.className = cls;
+      const card = document.createElement('div'); card.className = cls;
+      const safeKey = img.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeName = img.name.replace(/'/g,"\\'");
       card.innerHTML = `
-        <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
-        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">
+        <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${safeKey}',this)">
+        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}">
         <div class="card-body">
           <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
-          <div class="card-tags">${(img.tags||[]).filter(t=>t!=='edited').join(', ')||'&nbsp;'}</div>
+          ${catChipsHtml(safeKey, img.tags)}
           <div class="card-actions">
-            <button class="btn btn-blue btn-sm" onclick="selectSlot('h','${img.key}','${img.name.replace(/'/g,"\\'")}')">Set H</button>
-            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="selectSlot('v','${img.key}','${img.name.replace(/'/g,"\\'")}')">Set V</button>
-            <button class="btn btn-gray btn-sm" onclick="openEdit('${img.key}','${img.name.replace(/'/g,"\\'")}')">✏️</button>
-            <button class="btn btn-gray btn-sm" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">🔍</button>
-            <button class="btn btn-red btn-sm" onclick="deleteImage('${img.key}')">🗑</button>
+            <button class="btn btn-blue btn-sm" onclick="selectSlot('h','${safeKey}','${safeName}')">Set H</button>
+            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="selectSlot('v','${safeKey}','${safeName}')">Set V</button>
+            <button class="btn btn-gray btn-sm" onclick="openEdit('${safeKey}','${safeName}')">&#9999;&#65039;</button>
+            <button class="btn btn-gray btn-sm" onclick="openPreview('${safeKey}','${safeName}')">&#128269;</button>
+            <button class="btn btn-red btn-sm" onclick="deleteImage('${safeKey}')">&#128465;</button>
             <span class="edited-flag">EDITED</span>
           </div>
         </div>`;
-      grid.appendChild(card);
+      sub.appendChild(card);
       addDragHandlers(card, 'edited', idx);
     });
   }
 
-  // ── Image Library (originals only) ──
-  {
-    const lbl = document.createElement('div');
-    lbl.className = 'grid-section';
-    lbl.textContent = 'Image Library';
-    grid.appendChild(lbl);
+  // ── Image Library ──────────────────────────────────
+  const filteredOriginals = applyFilter(originals);
+  const secLib = makeSection('library', 'Image Library', filteredOriginals.length, false);
+  if (!filteredOriginals.length) {
+    const ph = document.createElement('div'); ph.className = 'grid-section-empty'; ph.style.cssText = 'padding:10px 4px;font-style:italic;font-size:.78rem;color:#444';
+    ph.textContent = !apiKey() ? 'Enter API key and click Save Key to load the gallery.' : originals.length ? 'No images in this category.' : 'No images found.';
+    secLib.appendChild(ph);
+  } else {
+    const sub = document.createElement('div'); sub.className = 'grid-sub'; secLib.appendChild(sub);
+    filteredOriginals.forEach((img, idx) => {
+      const isH = activeH?.key === img.key, isV = activeV?.key === img.key;
+      const isPicked = selectedKeys.has(img.key);
+      const cls = ['card', isPicked?'pick-selected':isH&&isV?'sel-hv':isH?'sel-h':isV?'sel-v':''].filter(Boolean).join(' ');
+      const card = document.createElement('div'); card.className = cls;
+      const safeKey = img.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeName = img.name.replace(/'/g,"\\'");
+      card.innerHTML = `
+        <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${safeKey}',this)">
+        <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}">
+        <div class="card-body">
+          <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
+          ${catChipsHtml(safeKey, img.tags)}
+          <div class="card-actions">
+            <button class="btn btn-blue btn-sm" onclick="selectSlot('h','${safeKey}','${safeName}')">Set H</button>
+            <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="selectSlot('v','${safeKey}','${safeName}')">Set V</button>
+            <button class="btn btn-gray btn-sm" onclick="openEdit('${safeKey}','${safeName}')">&#9999;&#65039;</button>
+            <button class="btn btn-gray btn-sm" onclick="openPreview('${safeKey}','${safeName}')">&#128269;</button>
+            <button class="btn btn-red btn-sm" onclick="deleteImage('${safeKey}')">&#128465;</button>
+          </div>
+        </div>`;
+      sub.appendChild(card);
+      addDragHandlers(card, 'original', idx);
+    });
   }
-  if (!originals.length) {
-    const ph = document.createElement('div');
-    ph.className = 'grid-section-empty';
-    ph.textContent = apiKey() ? 'No images found.' : 'Enter API key and click Save Key to load the gallery.';
-    grid.appendChild(ph);
-  }
-  originals.forEach((img, idx) => {
-    const isH = activeH?.key === img.key, isV = activeV?.key === img.key;
-    const isPicked = selectedKeys.has(img.key);
-    const cls = ['card', isPicked?'pick-selected':isH&&isV?'sel-hv':isH?'sel-h':isV?'sel-v':''].filter(Boolean).join(' ');
-    const card = document.createElement('div');
-    card.className = cls;
-    card.innerHTML = `
-      <input type="checkbox" class="card-cb" ${isPicked?'checked':''} style="display:${selectMode?'block':'none'}" onchange="toggleSelect('${img.key}',this)">
-      <img class="card-thumb" src="${WORKER}/img/${encodeURIComponent(img.key)}" loading="lazy" onclick="if(selectMode){const cb=this.closest('.card').querySelector('.card-cb');cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}else{openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')}">
-      <div class="card-body">
-        <div class="card-name">${img.name} ${isH?'<span class="badge">H</span>':''} ${isV?'<span class="badge v">V</span>':''}</div>
-        <div class="card-tags">${(img.tags||[]).join(', ')||'&nbsp;'}</div>
-        <div class="card-actions">
-          <button class="btn btn-blue btn-sm" onclick="selectSlot('h','${img.key}','${img.name.replace(/'/g,"\\'")}')">Set H</button>
-          <button class="btn btn-sm" style="background:#3b1d6e;color:#c4b5fd" onclick="selectSlot('v','${img.key}','${img.name.replace(/'/g,"\\'")}')">Set V</button>
-          <button class="btn btn-gray btn-sm" onclick="openEdit('${img.key}','${img.name.replace(/'/g,"\\'")}')">✏️</button>
-          <button class="btn btn-gray btn-sm" onclick="openPreview('${img.key}','${img.name.replace(/'/g,"\\'")}')">🔍</button>
-          <button class="btn btn-red btn-sm" onclick="deleteImage('${img.key}')">🗑</button>
-        </div>
-      </div>`;
-    grid.appendChild(card);
-    addDragHandlers(card, 'original', idx);
-  });
-  if (!layoutNames.length && !editedImgs.length && !originals.length) {
-    grid.innerHTML = `<p style="color:#555;padding:20px">${apiKey() ? 'No images found.' : 'Enter API key and click Save Key to load the gallery.'}</p>`;
-  }
+}
+
+function addCategoryFromInput() {
+  const input = document.getElementById('new-cat-input');
+  if (!input) return;
+  addCategory(input.value);
+  input.value = '';
+}
+
+function setCategoryFilter(cat) {
+  currentCategoryFilter = cat;
+  renderGrid();
+}
+
+function openBgUpload() {
+  // Pre-fill the upload modal with background tag
+  document.getElementById('ul-tags').value = 'background';
+  document.getElementById('ul-name').value = '';
+  document.getElementById('ul-file').value = '';
+  document.getElementById('ul-preview').style.display = 'none';
+  document.getElementById('ul-status').style.display = 'none';
+  document.getElementById('ul-name-row').style.display = 'block';
+  document.getElementById('ul-multi-info').style.display = 'none';
+  openModal('upload-modal');
 }
 
 // ── Multi-select ──────────────────────────────────

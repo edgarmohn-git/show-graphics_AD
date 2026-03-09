@@ -47,8 +47,23 @@ export default {
     if (request.method === 'GET' && path === '/active') {
       const slot = url.searchParams.get('slot'); // 'h' or 'v'
       if (!slot) return error('slot required', 400, origin);
+
+      // Serve from Cache API — only hits KV on cache miss or after a state change
+      const cacheKey = new Request(`${url.origin}/active?slot=${slot}`);
+      const cache = caches.default;
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const body = await cached.text();
+        return cors(new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } }), origin);
+      }
+      // Cache miss: read KV and populate cache
       const val = await env.KV.get(`active_${slot}`, 'json');
-      return json(val || null, 200, origin);
+      const body = JSON.stringify(val || null);
+      await cache.put(cacheKey, new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=10' },
+      }));
+      return cors(new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } }), origin);
     }
 
     // --- PUBLIC: serve image from R2 ---
@@ -75,8 +90,10 @@ export default {
       const x     = parseFloat(url.searchParams.get('x')    || '50');
       const y     = parseFloat(url.searchParams.get('y')    || '50');
       const slots = slot === 'both' ? ['h', 'v'] : [slot];
+      const cache = caches.default;
       for (const s of slots) {
         await env.KV.put(`active_${s}`, JSON.stringify({ key, name, scale, fit, x, y, updatedAt: new Date().toISOString() }));
+        await cache.delete(new Request(`${url.origin}/active?slot=${s}`));
       }
       return json({ ok: true, slot, key }, 200, origin);
     }
@@ -84,6 +101,31 @@ export default {
     // --- AUTH REQUIRED below ---
     if (!checkAuth(request, env)) {
       return error('Unauthorized', 401, origin);
+    }
+
+    // --- List categories ---
+    if (request.method === 'GET' && path === '/categories') {
+      const cats = (await env.KV.get('image_categories', 'json')) || [];
+      return json(cats, 200, origin);
+    }
+
+    // --- Save categories ---
+    if (request.method === 'PUT' && path === '/categories') {
+      const cats = await request.json();
+      await env.KV.put('image_categories', JSON.stringify(cats));
+      return json({ ok: true }, 200, origin);
+    }
+
+    // --- Update image tags ---
+    if (request.method === 'PUT' && path.startsWith('/tags/')) {
+      const key = decodeURIComponent(path.slice(6));
+      const { tags } = await request.json();
+      const index = (await env.KV.get('image_index', 'json')) || [];
+      const entry = index.find(i => i.key === key);
+      if (!entry) return error('Not found', 404, origin);
+      entry.tags = Array.isArray(tags) ? tags : [];
+      await env.KV.put('image_index', JSON.stringify(index));
+      return json({ ok: true }, 200, origin);
     }
 
     // --- List layouts ---
@@ -183,6 +225,7 @@ export default {
       const { slot, key, name = key, scale = 100, fit = 'contain', x = 50, y = 50 } = body;
       if (!slot || !key) return error('slot and key required', 400, origin);
       await env.KV.put(`active_${slot}`, JSON.stringify({ key, name, scale, fit, x, y, updatedAt: new Date().toISOString() }));
+      await caches.default.delete(new Request(`${url.origin}/active?slot=${slot}`));
       return json({ ok: true }, 200, origin);
     }
 
@@ -191,6 +234,7 @@ export default {
       const slot = url.searchParams.get('slot');
       if (!slot) return error('slot required', 400, origin);
       await env.KV.delete(`active_${slot}`);
+      await caches.default.delete(new Request(`${url.origin}/active?slot=${slot}`));
       return json({ ok: true }, 200, origin);
     }
 
