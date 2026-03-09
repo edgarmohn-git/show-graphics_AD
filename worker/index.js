@@ -103,6 +103,19 @@ export default {
       return error('Unauthorized', 401, origin);
     }
 
+    // --- List tag rules ---
+    if (request.method === 'GET' && path === '/tag-rules') {
+      const rules = (await env.KV.get('tag_rules', 'json')) || {};
+      return json(rules, 200, origin);
+    }
+
+    // --- Save tag rules ---
+    if (request.method === 'PUT' && path === '/tag-rules') {
+      const rules = await request.json();
+      await env.KV.put('tag_rules', JSON.stringify(rules));
+      return json({ ok: true }, 200, origin);
+    }
+
     // --- List categories ---
     if (request.method === 'GET' && path === '/categories') {
       const cats = (await env.KV.get('image_categories', 'json')) || [];

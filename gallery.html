@@ -390,6 +390,7 @@ let layoutOrder = []; // ordered array of layout names
 let drag = null;      // {type: 'layout'|'original'|'edited', idx: number}
 let bgRef = { h: null, v: null }; // { key, name, opacity, enabled } — key references R2; settings in localStorage
 let categories = [];              // array of category name strings (from KV)
+let tagRules = {};                // { categoryName: [keyword, ...] } — from KV
 let currentCategoryFilter = 'all'; // 'all' | 'uncategorized' | category name
 let sectionsState = {};           // section id → true=collapsed
 
@@ -415,13 +416,14 @@ window.onload = () => {
     document.getElementById('snap-grid').checked = snap;
     document.getElementById('grid-toggle').textContent = gridVisible ? '◉ Grid' : '○ Grid';
   } catch(e) {}
-  if (apiKey()) { loadGallery(); loadLayouts(); loadCategories(); }
+  if (apiKey()) { loadGallery(); loadLayouts(); loadCategories(); loadTagRules(); }
   else renderGrid(); // show "enter key" placeholder
   pollActive();
   setInterval(pollActive, 3000);
   updateGridOverlay();
   loadBgRefs();
   loadSectionsState();
+  initWindowDrop();
 };
 
 async function saveKey() {
@@ -434,7 +436,7 @@ async function saveKey() {
       const imgs = await r.json();
       images = imgs;
       setStatus(`Key accepted — ${imgs.length} image(s) found.`, true);
-      await Promise.all([loadLayouts(), loadCategories()]);
+      await Promise.all([loadLayouts(), loadCategories(), loadTagRules()]);
       renderGrid();
     } else {
       sessionStorage.removeItem('sg_api_key');
@@ -712,13 +714,40 @@ function onUlFileChange() {
       document.getElementById('ul-name').value = files[0].name.replace(/\.[^.]+$/, '');
     nameRow.style.display = 'block';
     info.style.display = 'none';
+    populateUlCatChips(files[0].name);
   } else {
     p.style.display = 'none';
     nameRow.style.display = 'none';
     document.getElementById('ul-name').value = '';
-    info.textContent = `${files.length} files selected — filenames used as names`;
+    info.textContent = `${files.length} files selected — filenames used as names, categories auto-detected per file`;
     info.style.display = 'block';
+    populateUlCatChips('');
   }
+}
+
+function populateUlCatChips(filename) {
+  const container = document.getElementById('ul-cat-chips');
+  if (!container || !categories.length) { if (container) container.innerHTML = '<span style="font-size:.73rem;color:#444;font-style:italic">No categories defined yet.</span>'; return; }
+  const autoMatched = filename ? autoTagByFilename(filename) : [];
+  container.innerHTML = categories.map(c => {
+    const checked = autoMatched.includes(c);
+    const id = 'ulcat-' + c.replace(/\W+/g,'_');
+    return `<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:3px 8px;border-radius:10px;border:1px solid ${checked?'#2563eb':'#2a2a2a'};background:${checked?'#1e3a5f':'transparent'};font-size:.73rem;color:${checked?'#93c5fd':'#666'};transition:all .15s" id="lbl-${id}">
+      <input type="checkbox" id="${id}" ${checked?'checked':''} style="display:none" onchange="this.closest('label').style.background=this.checked?'#1e3a5f':'transparent';this.closest('label').style.borderColor=this.checked?'#2563eb':'#2a2a2a';this.closest('label').style.color=this.checked?'#93c5fd':'#666'">
+      ${c}
+    </label>`;
+  }).join('');
+}
+
+function getUlSelectedCats() {
+  const container = document.getElementById('ul-cat-chips');
+  if (!container) return [];
+  return [...container.querySelectorAll('input[type=checkbox]:checked')].map(cb => {
+    // reverse the id encoding to get category name
+    const id = cb.id.replace(/^ulcat-/, '');
+    const cat = categories.find(c => c.replace(/\W+/g,'_') === id);
+    return cat || null;
+  }).filter(Boolean);
 }
 
 function setUlStatus(msg, ok) {
@@ -740,10 +769,17 @@ async function galleryUploadOne(file, name, tags) {
 
 async function galleryUpload() {
   const files = document.getElementById('ul-file').files;
-  const tags = document.getElementById('ul-tags').value.trim();
+  const extraTags = document.getElementById('ul-tags').value.trim();
   if (!files.length) { setUlStatus('Select a file first.', false); return; }
+
+  function buildTags(filename, selectedCats) {
+    const all = new Set([...selectedCats, ...extraTags.split(',').map(t=>t.trim()).filter(Boolean)]);
+    return [...all].join(',');
+  }
+
   if (files.length === 1) {
     const name = document.getElementById('ul-name').value.trim() || files[0].name.replace(/\.[^.]+$/, '');
+    const tags = buildTags(files[0].name, getUlSelectedCats());
     setUlStatus('Uploading…', true);
     try {
       const data = await galleryUploadOne(files[0], name, tags);
@@ -753,6 +789,7 @@ async function galleryUpload() {
         document.getElementById('ul-preview').style.display = 'none';
         document.getElementById('ul-name').value = '';
         document.getElementById('ul-tags').value = '';
+        populateUlCatChips('');
         await loadGallery();
       } else { setUlStatus(`Error: ${data.error}`, false); }
     } catch(e) { setUlStatus(`Upload failed: ${e.message}`, false); }
@@ -760,6 +797,9 @@ async function galleryUpload() {
     let done = 0, failed = 0;
     for (const file of files) {
       const name = file.name.replace(/\.[^.]+$/, '');
+      // Per-file: auto-detect categories from filename
+      const autoCats = autoTagByFilename(file.name);
+      const tags = buildTags(file.name, autoCats);
       setUlStatus(`Uploading ${done + failed + 1} / ${files.length}: ${name}…`, true);
       try {
         const data = await galleryUploadOne(file, name, tags);
@@ -771,6 +811,7 @@ async function galleryUpload() {
     document.getElementById('ul-multi-info').style.display = 'none';
     document.getElementById('ul-name-row').style.display = 'block';
     document.getElementById('ul-tags').value = '';
+    populateUlCatChips('');
     await loadGallery();
   }
 }
@@ -944,10 +985,10 @@ async function toggleImageCategory(key, catName, add) {
 }
 
 // ── Drag helpers ──────────────────────────────────
-function addDragHandlers(card, type, idx) {
+function addDragHandlers(card, type, idx, key) {
   card.draggable = true;
   card.addEventListener('dragstart', e => {
-    drag = { type, idx };
+    drag = { type, idx, key };
     card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
   });
@@ -1139,7 +1180,23 @@ function renderGrid() {
     </div>
     <div class="cat-item-row">${categories.length ? categories.map(c => {
       const sc = c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div class="cat-item">${c}<button onclick="renameCategory('${sc}')" title="Rename">&#9999;&#65039;</button><button onclick="deleteCategory('${sc}')" title="Delete">&#128465;</button></div>`;
+      const kwId = 'kw-' + c.replace(/\W+/g,'_');
+      const keywords = tagRules[c] || [];
+      const kwChips = keywords.map(kw => {
+        const skw = kw.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return `<span style="display:inline-flex;align-items:center;gap:2px;background:#1a2a1a;border:1px solid #2a3a2a;border-radius:10px;padding:2px 7px;font-size:.65rem;color:#86efac">${kw}<span style="cursor:pointer;opacity:.5;font-weight:700;margin-left:2px" onclick="removeTagRule('${sc}','${skw}')">✕</span></span>`;
+      }).join('');
+      return `<div class="cat-item" style="flex-direction:column;align-items:flex-start;gap:4px;padding:6px 8px">
+        <div style="display:flex;align-items:center;gap:4px;width:100%">
+          <span style="flex:1;font-weight:500">${c}</span>
+          <button onclick="renameCategory('${sc}')" title="Rename">&#9999;&#65039;</button>
+          <button onclick="deleteCategory('${sc}')" title="Delete">&#128465;</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">
+          ${kwChips}
+          <input id="${kwId}" placeholder="+ keyword" style="width:90px;padding:2px 6px;background:#111;border:1px solid #222;color:#aaa;border-radius:10px;font-size:.68rem;outline:none" onkeydown="if(event.key==='Enter'){addTagRule('${sc}',this.value);this.value='';event.preventDefault()}" title="Type keyword, press Enter — filename matches are auto-tagged on upload">
+        </div>
+      </div>`;
     }).join('') : '<span style="font-size:.75rem;color:#444;font-style:italic">No categories yet.</span>'}</div>`;
 
   // ── Category filter bar ────────────────────────────
@@ -1150,8 +1207,24 @@ function renderGrid() {
     <button class="cat-btn${currentCategoryFilter==='uncategorized'?' active':''}" onclick="setCategoryFilter('uncategorized')">Uncategorized</button>
     ${sortedCats.map(c => {
       const sc = c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<button class="cat-btn${currentCategoryFilter===c?' active':''}" onclick="setCategoryFilter('${sc}')">${c}</button>`;
+      return `<button class="cat-btn${currentCategoryFilter===c?' active':''}" onclick="setCategoryFilter('${sc}')" data-cat="${sc}">${c}</button>`;
     }).join('')}`;
+  // Make category buttons drop targets for drag-to-assign
+  filterRow.querySelectorAll('.cat-btn[data-cat]').forEach(btn => {
+    const catName = btn.dataset.cat;
+    btn.addEventListener('dragover', e => {
+      if (!drag || !['original','edited'].includes(drag.type)) return;
+      e.preventDefault();
+      btn.style.outline = '2px solid #2563eb';
+    });
+    btn.addEventListener('dragleave', () => { btn.style.outline = ''; });
+    btn.addEventListener('drop', e => {
+      e.preventDefault();
+      btn.style.outline = '';
+      if (!drag?.key) return;
+      toggleImageCategory(drag.key, catName, true);
+    });
+  });
 
   // ── Processed Images ───────────────────────────────
   const filteredEdited = applyFilter(editedImgs);
@@ -1185,7 +1258,7 @@ function renderGrid() {
           </div>
         </div>`;
       sub.appendChild(card);
-      addDragHandlers(card, 'edited', idx);
+      addDragHandlers(card, 'edited', idx, img.key);
     });
   }
 
@@ -1220,7 +1293,7 @@ function renderGrid() {
           </div>
         </div>`;
       sub.appendChild(card);
-      addDragHandlers(card, 'original', idx);
+      addDragHandlers(card, 'original', idx, img.key);
     });
   }
 }
@@ -1237,6 +1310,125 @@ function setCategoryFilter(cat) {
   renderGrid();
 }
 
+// ── Tag rules (filename → category auto-tagging) ──
+async function loadTagRules() {
+  try {
+    const r = await fetch(`${WORKER}/tag-rules`, { headers: { 'X-API-Key': apiKey() } });
+    if (r.ok) tagRules = await r.json(); else tagRules = {};
+  } catch(e) { tagRules = {}; }
+  renderGrid();
+}
+
+async function saveTagRules() {
+  try {
+    await fetch(`${WORKER}/tag-rules`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body: JSON.stringify(tagRules)
+    });
+  } catch(e) {}
+}
+
+function autoTagByFilename(filename) {
+  const name = filename.toLowerCase().replace(/[_\-\.]/g, ' ');
+  const matched = [];
+  for (const [cat, keywords] of Object.entries(tagRules)) {
+    if ((keywords || []).some(kw => name.includes(kw.toLowerCase()))) {
+      if (!matched.includes(cat)) matched.push(cat);
+    }
+  }
+  return matched;
+}
+
+async function addTagRule(category, keyword) {
+  const kw = keyword.trim();
+  if (!kw) return;
+  if (!tagRules[category]) tagRules[category] = [];
+  if (!tagRules[category].includes(kw)) {
+    tagRules[category].push(kw);
+    await saveTagRules();
+    renderGrid();
+  }
+}
+
+async function removeTagRule(category, keyword) {
+  if (!tagRules[category]) return;
+  tagRules[category] = tagRules[category].filter(k => k !== keyword);
+  if (!tagRules[category].length) delete tagRules[category];
+  await saveTagRules();
+  renderGrid();
+}
+
+// ── Window drag-and-drop upload ────────────────────
+let _dropOverlay = null;
+let _dragEnterCount = 0;
+
+function initWindowDrop() {
+  document.addEventListener('dragenter', e => {
+    if (![...e.dataTransfer.types].includes('Files')) return;
+    _dragEnterCount++;
+    if (_dragEnterCount === 1) showDropOverlay();
+  });
+  document.addEventListener('dragleave', e => {
+    if (![...e.dataTransfer.types].includes('Files')) return;
+    _dragEnterCount--;
+    if (_dragEnterCount <= 0) { _dragEnterCount = 0; hideDropOverlay(); }
+  });
+  document.addEventListener('dragover', e => {
+    if ([...e.dataTransfer.types].includes('Files')) e.preventDefault();
+  });
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    _dragEnterCount = 0;
+    hideDropOverlay();
+    const files = [...e.dataTransfer.files].filter(f =>
+      f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|avif|gif|svg|bmp)$/i.test(f.name)
+    );
+    if (!files.length) return;
+    if (!apiKey()) { setStatus('Enter API key first.', false); return; }
+    uploadDroppedFiles(files);
+  });
+}
+
+function showDropOverlay() {
+  if (!_dropOverlay) {
+    _dropOverlay = document.createElement('div');
+    _dropOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(37,99,235,0.12);border:3px dashed #2563eb;z-index:500;display:flex;align-items:center;justify-content:center;pointer-events:none';
+    _dropOverlay.innerHTML = '<div style="background:#0d0d0d;padding:24px 48px;border-radius:12px;border:2px solid #2563eb;text-align:center"><div style="font-size:2.5rem;margin-bottom:8px">📤</div><div style="color:#93c5fd;font-size:1.1rem;font-weight:600">Drop images to upload</div><div id="drop-cat-hint" style="color:#555;font-size:.82rem;margin-top:6px"></div></div>';
+    document.body.appendChild(_dropOverlay);
+  }
+  const hint = document.getElementById('drop-cat-hint');
+  if (hint) {
+    hint.textContent = currentCategoryFilter !== 'all' && currentCategoryFilter !== 'uncategorized'
+      ? `Auto-tagged: ${currentCategoryFilter}` : 'Filename keywords will be matched to categories';
+  }
+  _dropOverlay.style.display = 'flex';
+}
+
+function hideDropOverlay() {
+  if (_dropOverlay) _dropOverlay.style.display = 'none';
+}
+
+async function uploadDroppedFiles(files) {
+  let done = 0, failed = 0;
+  for (const file of files) {
+    const name = file.name.replace(/\.[^.]+$/, '');
+    const autoTags = autoTagByFilename(file.name);
+    if (currentCategoryFilter !== 'all' && currentCategoryFilter !== 'uncategorized'
+        && !autoTags.includes(currentCategoryFilter)) {
+      autoTags.push(currentCategoryFilter);
+    }
+    const tags = autoTags.join(',');
+    setStatus(`Uploading ${done + failed + 1}/${files.length}: ${name}…`, true);
+    try {
+      const data = await galleryUploadOne(file, name, tags);
+      if (data.ok) done++; else failed++;
+    } catch(e) { failed++; }
+  }
+  setStatus(failed === 0 ? `✓ ${done} file(s) uploaded.` : `${done} uploaded, ${failed} failed.`, failed === 0);
+  await loadGallery();
+}
+
 function openBgUpload() {
   // Pre-fill the upload modal with background tag
   document.getElementById('ul-tags').value = 'background';
@@ -1246,6 +1438,7 @@ function openBgUpload() {
   document.getElementById('ul-status').style.display = 'none';
   document.getElementById('ul-name-row').style.display = 'block';
   document.getElementById('ul-multi-info').style.display = 'none';
+  populateUlCatChips('');
   openModal('upload-modal');
 }
 
@@ -1776,8 +1969,12 @@ document.addEventListener('keydown', e => {
       <label style="font-size:.8rem;color:#aaa;display:block;margin-bottom:4px">Name</label>
       <input type="text" id="ul-name" placeholder="Image name" style="width:100%;padding:8px;background:#222;border:1px solid #444;color:#fff;border-radius:6px;margin-bottom:12px;font-size:.85rem">
     </div>
-    <label style="font-size:.8rem;color:#aaa;display:block;margin-bottom:4px">Tags (comma separated)</label>
-    <input type="text" id="ul-tags" placeholder="e.g. phone, samsung" style="width:100%;padding:8px;background:#222;border:1px solid #444;color:#fff;border-radius:6px;margin-bottom:16px;font-size:.85rem">
+    <div id="ul-cat-section" style="margin-bottom:12px">
+      <label style="font-size:.8rem;color:#aaa;display:block;margin-bottom:6px">Categories <span style="color:#444;font-weight:400">(toggle to assign)</span></label>
+      <div id="ul-cat-chips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:28px;padding:6px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px"></div>
+    </div>
+    <label style="font-size:.8rem;color:#aaa;display:block;margin-bottom:4px">Extra tags (comma separated)</label>
+    <input type="text" id="ul-tags" placeholder="e.g. custom-tag" style="width:100%;padding:8px;background:#222;border:1px solid #444;color:#fff;border-radius:6px;margin-bottom:16px;font-size:.85rem">
     <button class="btn btn-blue" style="width:100%" onclick="galleryUpload()">Upload</button>
     <div id="ul-status" style="margin-top:12px;padding:10px;border-radius:6px;font-size:.83rem;display:none"></div>
   </div>
