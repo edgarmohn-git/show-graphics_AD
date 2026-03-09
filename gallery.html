@@ -36,6 +36,10 @@ a,button{cursor:pointer}
 .canvas-wrap.ratio-h{aspect-ratio:16/9}
 .canvas-wrap.ratio-v{aspect-ratio:9/16;max-height:calc((50vw - 28px) * (9/16));width:auto;margin:0 auto}
 .canvas-wrap img.preview-img{position:absolute;transform-origin:center center;transition:transform .1s,left .1s,top .1s;z-index:1}
+.canvas-wrap img.bg-ref-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:0;pointer-events:none}
+.bg-ref-controls{display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap}
+.bg-ref-controls span{font-size:.72rem;color:#555}
+.bg-ref-controls input[type=range]{width:70px;accent-color:#555}
 .canvas-wrap::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:10;background-image:var(--grid-bg,none);background-size:var(--grid-sz,25% 25%)}
 .grid-controls{display:flex;gap:10px;align-items:center;padding:6px 16px;background:#111;border-bottom:1px solid #1e1e1e;font-size:.75rem;color:#666}
 .grid-controls select{background:#1e1e1e;color:#ccc;border:1px solid #2a2a2a;border-radius:4px;padding:3px 7px;font-size:.75rem}
@@ -163,6 +167,13 @@ a,button{cursor:pointer}
       </select>
       <button class="btn btn-red btn-sm" onclick="clearSlot('h')">Clear</button>
     </div>
+    <input type="file" id="bg-file-h" accept="image/*" style="display:none" onchange="loadBgRef('h',this)">
+    <div class="bg-ref-controls">
+      <button class="btn btn-gray btn-sm" onclick="document.getElementById('bg-file-h').click()" title="Load a vMix layout screenshot as position reference (gallery only — not sent to vMix)">🖼 BG ref</button>
+      <span>Opacity</span>
+      <input type="range" id="bg-opacity-h" min="5" max="80" value="40" oninput="setBgOpacity('h',this.value)">
+      <button class="btn btn-gray btn-sm" id="bg-clear-h" onclick="clearBgRef('h')" style="display:none" title="Remove reference image">✕</button>
+    </div>
   </div>
   <div class="slot-panel">
     <h3>🟣 Slot V — Vertical <a href="https://edgarmohn-git.github.io/show-graphics_AD/graphic-v.html" target="_blank" style="font-size:.7rem;color:#555;font-weight:400;letter-spacing:0;text-transform:none;margin-left:6px;text-decoration:none;" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">↗ open</a><button onclick="copyUrl('v')" title="Copy URL" style="background:none;border:none;color:#444;cursor:pointer;font-size:.75rem;margin-left:4px;padding:0" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#444'">📋</button></h3>
@@ -180,6 +191,13 @@ a,button{cursor:pointer}
         <option value="cover">Fill (crop to fit)</option>
       </select>
       <button class="btn btn-red btn-sm" onclick="clearSlot('v')">Clear</button>
+    </div>
+    <input type="file" id="bg-file-v" accept="image/*" style="display:none" onchange="loadBgRef('v',this)">
+    <div class="bg-ref-controls">
+      <button class="btn btn-gray btn-sm" onclick="document.getElementById('bg-file-v').click()" title="Load a vMix layout screenshot as position reference (gallery only — not sent to vMix)">🖼 BG ref</button>
+      <span>Opacity</span>
+      <input type="range" id="bg-opacity-v" min="5" max="80" value="40" oninput="setBgOpacity('v',this.value)">
+      <button class="btn btn-gray btn-sm" id="bg-clear-v" onclick="clearBgRef('v')" style="display:none" title="Remove reference image">✕</button>
     </div>
   </div>
 </div>
@@ -322,6 +340,7 @@ let selectedKeys = new Set();
 let selectedLayouts = new Set();
 let layoutOrder = []; // ordered array of layout names
 let drag = null;      // {type: 'layout'|'original'|'edited', idx: number}
+let bgRef = { h: null, v: null }; // { dataUrl, opacity } — localStorage only, never sent to server
 
 // ── Init ──────────────────────────────────────────
 window.onload = () => {
@@ -350,6 +369,7 @@ window.onload = () => {
   pollActive();
   setInterval(pollActive, 3000);
   updateGridOverlay();
+  loadBgRefs();
 };
 
 async function saveKey() {
@@ -459,9 +479,17 @@ async function pollActive() {
 function updatePreview(slot) {
   const state = slot === 'h' ? activeH : activeV;
   const wrap = document.getElementById(`preview-${slot}`);
-  if (!state) { wrap.innerHTML = '<div class="canvas-empty">empty</div>'; return; }
+  if (!state) {
+    // Remove preview-img and empty-div, preserve bg-ref-img
+    wrap.querySelector('img.preview-img')?.remove();
+    let empty = wrap.querySelector('.canvas-empty');
+    if (!empty) { empty = document.createElement('div'); empty.className = 'canvas-empty'; wrap.appendChild(empty); }
+    empty.textContent = 'empty';
+    return;
+  }
+  wrap.querySelector('.canvas-empty')?.remove();
   let img = wrap.querySelector('img.preview-img');
-  if (!img) { wrap.innerHTML = ''; img = document.createElement('img'); img.className = 'preview-img'; wrap.appendChild(img); initDrag(wrap, slot); }
+  if (!img) { img = document.createElement('img'); img.className = 'preview-img'; wrap.appendChild(img); initDrag(wrap, slot); }
   const src = `${WORKER}/img/${encodeURIComponent(state.key)}`;
   if (img.getAttribute('data-key') !== state.key) { img.src = src; img.setAttribute('data-key', state.key); }
   applyImgStyle(img, state, wrap);
@@ -693,6 +721,65 @@ async function galleryUpload() {
     document.getElementById('ul-tags').value = '';
     await loadGallery();
   }
+}
+
+// ── Background reference images ───────────────────
+function saveBgRefs() {
+  try { localStorage.setItem('sg_bg_refs', JSON.stringify(bgRef)); } catch(e) {}
+}
+
+function loadBgRefs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('sg_bg_refs') || 'null');
+    if (!saved) return;
+    bgRef = saved;
+    ['h','v'].forEach(slot => {
+      if (bgRef[slot]) {
+        renderBgRef(slot);
+        document.getElementById(`bg-opacity-${slot}`).value = bgRef[slot].opacity;
+        document.getElementById(`bg-clear-${slot}`).style.display = '';
+      }
+    });
+  } catch(e) {}
+}
+
+function loadBgRef(slot, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    bgRef[slot] = { dataUrl: e.target.result, opacity: parseInt(document.getElementById(`bg-opacity-${slot}`).value) };
+    saveBgRefs();
+    renderBgRef(slot);
+    document.getElementById(`bg-clear-${slot}`).style.display = '';
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderBgRef(slot) {
+  const wrap = document.getElementById(`preview-${slot}`);
+  let img = wrap.querySelector('img.bg-ref-img');
+  if (!bgRef[slot]) { if (img) img.remove(); return; }
+  if (!img) { img = document.createElement('img'); img.className = 'bg-ref-img'; wrap.insertBefore(img, wrap.firstChild); }
+  img.src = bgRef[slot].dataUrl;
+  img.style.opacity = bgRef[slot].opacity / 100;
+}
+
+function setBgOpacity(slot, val) {
+  if (!bgRef[slot]) return;
+  bgRef[slot].opacity = parseInt(val);
+  saveBgRefs();
+  const img = document.getElementById(`preview-${slot}`).querySelector('img.bg-ref-img');
+  if (img) img.style.opacity = val / 100;
+}
+
+function clearBgRef(slot) {
+  bgRef[slot] = null;
+  saveBgRefs();
+  renderBgRef(slot);
+  document.getElementById(`bg-clear-${slot}`).style.display = 'none';
+  document.getElementById(`bg-file-${slot}`).value = '';
 }
 
 // ── Drag helpers ──────────────────────────────────
